@@ -1,11 +1,35 @@
 # sol-baseline × SOL-Lite roofline report
 
-Tested 51 baselines, 0 errored.
+Tested 51 baselines, 0 errored. **1 baseline yielded 0 rows**
+(017_gqa_ragged_prefill flashinfer — input generator does not yet
+materialize the safetensors-loaded `cu_seqlens` / `qo_indptr` arrays).
 
-All numbers measured on this machine. Columns:
-- `geomean_us` — geometric mean latency across workload rows (smoke = 3 reps)
-- `peak_MFU` / `peak_BW%` — max achievable values across rows (read against `mfu_ceiling`!)
-- `recommended` — primary metric to read for this baseline given its regime mix
+## Hardware caveat
+
+Timing was collected on **NVIDIA B200** (HBM3e ~8 TB/s, BF16 peak
+~2250 TFLOPS), but the analyzer's roofline ceilings are for **H800**
+(HBM3 3.35 TB/s, BF16 peak 989 TFLOPS). When MFU or BW% exceeds 100%
+in the table below, the kernel is beating the *H800* ceiling because
+the underlying GPU is faster — divide by ~2-2.5× to get the
+B200-relative ratio. The regime classification and `mfu_ceiling` are
+still valid because they are properties of the algorithmic AI vs ridge,
+not of wall time.
+
+## Outlier
+
+`019_mla_paged_prefill_causal flashinfer MFU=1234%` is too extreme even
+for the B200 mismatch — the analyzer's flops/bytes estimate for
+paged-MLA prefill with causal mask + variable sequence lengths is
+likely wrong. Treat that one row with suspicion until the analyzer is
+refined.
+
+## Columns
+
+- `geomean_us` — geometric mean latency across the 3 smoke workload rows
+- `peak_MFU` / `peak_BW%` — max achievable values across rows
+   (always read together with `mfu_ceiling` from the per-row CSV!)
+- `recommended` — primary metric to read for this baseline given its
+   per-row regime distribution
 
 | definition | lib | n_rows | regime | recommended | geomean_us | peak_MFU | peak_BW% |
 |---|---|---:|---|---|---:|---:|---:|
