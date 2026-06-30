@@ -85,7 +85,9 @@ metric to report** for that row. The supported regimes are:
 Why per-row: across the 60 problems only ~18 admit a single MFU-or-BW%
 metric. The rest either cross regimes within one problem (34), or are
 dominantly latency-bound (8). See [`roofline_summary.md`](roofline_summary.md)
-for the full per-problem regime table.
+for the full per-problem regime table, and
+[`ROOFLINE_ANALYSIS.md`](ROOFLINE_ANALYSIS.md) for the methodology
+(why these metrics, why per-regime, why three analyzer tiers).
 
 ### Workflow
 
