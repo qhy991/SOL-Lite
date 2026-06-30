@@ -128,37 +128,64 @@ def generate_inputs(defn: dict, axes: dict, get_inputs_fn, device: str):
     """
     torch = _need_torch()
     if get_inputs_fn is not None and defn.get("custom_inputs_entrypoint"):
-        # Custom inputs entrypoint - merge axes with consts
+        # Custom inputs entrypoint - merge axes with consts + exprs
         axes_and_scalars = dict(axes)
         for k, v in defn["axes"].items():
             if v.get("type") == "const":
                 axes_and_scalars.setdefault(k, v["value"])
+        # Evaluate expression axes (often used by custom get_inputs)
+        for k, v in defn["axes"].items():
+            if v.get("type") == "expr" and k not in axes_and_scalars:
+                try:
+                    axes_and_scalars[k] = eval(v["expression"], {}, axes_and_scalars)
+                except Exception:
+                    pass
         return get_inputs_fn(axes_and_scalars, torch.device(device))
 
-    # Synthesize random inputs from the spec
+    # Synthesize random inputs from the spec.
+    # Build the full axis namespace: var (from row) + const + expr (evaluated)
+    namespace = dict(axes)
+    for k, v in defn["axes"].items():
+        if v.get("type") == "const":
+            namespace.setdefault(k, v["value"])
+    # Iteratively resolve expressions (one expr may reference another)
+    pending = {k: v["expression"] for k, v in defn["axes"].items()
+               if v.get("type") == "expr"}
+    progress = True
+    while pending and progress:
+        progress = False
+        for k in list(pending):
+            try:
+                namespace[k] = eval(pending[k], {}, namespace)
+                del pending[k]
+                progress = True
+            except (NameError, SyntaxError):
+                continue
+    consts = namespace
+
     out = {}
-    consts = {k: v["value"] for k, v in defn["axes"].items()
-              if v.get("type") == "const"}
     for k, v in defn["inputs"].items():
         shape_spec = v.get("shape")
         dtype_str = v.get("dtype")
         if shape_spec is None:
             # scalar — must come from workload's "inputs" section
             continue
-        # Resolve symbolic shape against axes + consts
+        # Resolve symbolic shape against the merged namespace
         shape = []
         for s in shape_spec:
             if isinstance(s, int): shape.append(s); continue
-            if s in axes:   shape.append(axes[s]);   continue
             if s in consts: shape.append(consts[s]); continue
             if s.isdigit(): shape.append(int(s));    continue
-            raise KeyError(f"unresolved shape axis '{s}' for input '{k}' "
-                           f"(axes={axes}, consts={consts})")
+            # Last attempt: eval expression in namespace
+            try:
+                shape.append(int(eval(s, {}, consts)))
+            except Exception:
+                raise KeyError(f"unresolved shape axis '{s}' for input '{k}' "
+                               f"(known: {sorted(consts)})")
         dtype = getattr(torch, DTYPE_MAP.get(dtype_str, dtype_str))
-        # Use randn for floats, randint for ints, ones for bool
+        # Use randn for floats, zeros for ints, ones for bool
         if dtype_str.startswith("float") or dtype_str.startswith("bfloat"):
             if dtype_str.startswith("float8"):
-                # randn on float8 isn't supported — generate fp32 then cast
                 out[k] = torch.randn(*shape, dtype=torch.float32,
                                      device=device).to(dtype)
             else:
@@ -213,7 +240,13 @@ def bench_problem(problem_dir: Path, defn: dict, solution_path: Path | None,
     sol_path = solution_path or (problem_dir / "reference.py")
     if not sol_path.exists():
         raise FileNotFoundError(f"solution file not found: {sol_path}")
-    run_fn, get_inputs_fn = import_run_fn(sol_path, name)
+    run_fn, _ = import_run_fn(sol_path, name + "_sol")
+
+    # For input generation, always pull get_inputs from the REFERENCE — the
+    # solution often only exports run() and would not know how to materialize
+    # 'custom' input types declared by the workload.
+    ref_path = problem_dir / "reference.py"
+    _, get_inputs_fn = import_run_fn(ref_path, name + "_ref")
 
     handler = get_handler(name)
 
