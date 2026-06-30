@@ -430,18 +430,35 @@ def load_workload(subdir: str) -> list[dict]:
                                     ).read_text().splitlines() if l.strip()]
 
 
-def report_problem(prob: L2Problem, rows_to_show: int = 3) -> None:
+def report_problem(prob: L2Problem, smoke: bool = True) -> None:
+    """Render decomposition for one or more workload rows of this L2 problem.
+
+    smoke=True (default): show only small/mid/large representatives (3 rows).
+    smoke=False: every workload row — useful for long-context analysis where
+                 attention dominance shifts dramatically with seq_len.
+    """
     print("=" * 130)
     print(f"PROBLEM: {prob.name}")
     if prob.note: print(f"  note: {prob.note}")
     print("=" * 130)
     wl = load_workload(prob.subdir)
     wl.sort(key=lambda r: r["axes"].get("batch_size",1)*r["axes"].get("seq_len",1))
-    picks = [wl[0], wl[len(wl)//2], wl[-1]][:rows_to_show]
+    if smoke and len(wl) > 3:
+        picks = [wl[0], wl[len(wl)//2], wl[-1]]
+    else:
+        picks = wl
     for w in picks:
         report_l2(prob, w["axes"])
 
 
 if __name__ == "__main__":
+    import argparse
+    ap = argparse.ArgumentParser(description="L2 multi-kernel batch roofline analyzer")
+    ap.add_argument("--full", action="store_true",
+                    help="show every workload row (default: smoke 3 reps per problem)")
+    ap.add_argument("--problem", help="only run this problem (substring match on name)")
+    args = ap.parse_args()
     for p in PROBLEMS:
-        report_problem(p)
+        if args.problem and args.problem not in p.name:
+            continue
+        report_problem(p, smoke=not args.full)

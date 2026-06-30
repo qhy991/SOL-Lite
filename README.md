@@ -113,6 +113,34 @@ sol_efficiency, speedup_vs_reference, below_latency_floor
 The summary table reports geometric means per problem, with the dominant
 regime so you know which column to actually read.
 
+### Standalone timing engine (no sol-execbench needed)
+
+For quick kernel iteration without going through the full sol-execbench
+CLI, use `roofline_bench.py`. It times your kernel with launch-overhead
+amortisation (back-to-back launches between cuda.Events with no sync
+between them — methodology borrowed from
+[SOLBench-H800](https://github.com/runboo-fly/SOLBench-H800)) and reports
+regime-aware metrics.
+
+```bash
+# Install the optional bench extra (pulls in torch)
+uv sync --extra bench
+
+# Time the reference impl of one problem
+uv run python scripts/roofline_bench.py L1/069_rms_norm --smoke
+
+# Time a user solution
+uv run python scripts/roofline_bench.py L1/069_rms_norm \
+    --solution my_kernel.py --smoke
+
+# CSV output
+uv run python scripts/roofline_bench.py L1/069_rms_norm \
+    --smoke -o results.csv
+```
+
+Output (per row): `regime, latency_us, MFU, mfu_ceiling, BW%, SoL_eff`.
+Below the table: regime distribution + recommended primary metric.
+
 ### Standalone (offline-only) tools
 
 ```bash
@@ -120,6 +148,11 @@ regime so you know which column to actually read.
 uv run python scripts/roofline_tier1_batch.py   # 36 dense problems
 uv run python scripts/roofline_moe.py           # 15 MoE problems (with routing simulation)
 uv run python scripts/roofline_l2.py            # 9 fused multi-kernel L2 blocks
+
+# --smoke (3 reps per problem) and --problem <substring> filtering
+uv run python scripts/roofline_tier1_batch.py --smoke --problem 069
+uv run python scripts/roofline_moe.py --smoke
+uv run python scripts/roofline_l2.py --problem L2/002    # L2 default IS smoke; use --full for all rows
 
 # Cross-cutting summary CSV + markdown
 uv run python scripts/roofline_summary.py
@@ -140,9 +173,20 @@ uv run python scripts/roofline_measure.py list
 | `roofline_tier1_batch.py` | dense single-kernel / multi-GEMM chains | RMSNorm, GEMM, RoPE, MLA, MLP, attention variants |
 | `roofline_moe.py` | data-dependent MoE | routing simulated via random gate logits → realized FLOPs/bytes |
 | `roofline_l2.py` | L2 fused multi-kernel blocks | per-op decomposition (10-17 ops/layer) |
+| `roofline_measure.py` | trace augmentation | join sol-execbench traces with the analyzer registry |
+| `roofline_bench.py` | standalone timing | back-to-back launch (borrowed from SOLBench-H800) + regime-aware metrics |
 
-`roofline_measure.py` builds a unified `definition-name → handler` registry
-across all three so any trace can be processed regardless of tier.
+`roofline_measure.py` and `roofline_bench.py` share a unified
+`definition-name → handler` registry across all three analyzer tiers,
+so any trace or solution can be processed regardless of tier.
+
+## Acknowledgements
+
+- The benchmark problem set itself is from
+  [NVIDIA SOL-ExecBench](https://github.com/NVIDIA/SOL-ExecBench).
+- The back-to-back-launch timing methodology in `scripts/roofline_bench.py`
+  is adapted from [SOLBench-H800](https://github.com/runboo-fly/SOLBench-H800)
+  (`harness.py`).
 
 ## License
 

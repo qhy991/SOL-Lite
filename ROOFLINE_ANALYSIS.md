@@ -402,6 +402,9 @@ when:
    the three analyzers, where you can read the FLOPs/bytes formulas for
    any specific problem
 4. `scripts/roofline_measure.py` — the trace-augmentation tool
+5. `scripts/roofline_bench.py` — standalone timing engine (back-to-back
+   launches; methodology borrowed from
+   [SOLBench-H800](https://github.com/runboo-fly/SOLBench-H800))
 
 ---
 

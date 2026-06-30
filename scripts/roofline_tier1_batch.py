@@ -54,7 +54,15 @@ def classify(flops: float, bytes_: float, peak_flops: float) -> dict:
     )
 
 
-def report(prob: Problem) -> None:
+def _smoke_select(rows: list) -> list:
+    """Pick small / mid / large representative workloads (borrowed from SOLBench-H800)."""
+    n = len(rows)
+    if n <= 3:
+        return rows
+    return [rows[0], rows[n // 2], rows[-1]]
+
+
+def report(prob: Problem, smoke: bool = False) -> None:
     wpath = CONTEST_ROOT / prob.subdir / "workload.jsonl"
     rows_in = [json.loads(l) for l in wpath.read_text().splitlines() if l.strip()]
     results = []
@@ -64,6 +72,7 @@ def report(prob: Problem) -> None:
         results.append({"axes": r["axes"], "flops": flops, "bytes": bytes_,
                         "peak": peak, **m})
     results.sort(key=lambda x: x["t_sol_us"])
+    display_rows = _smoke_select(results) if smoke else results
 
     print("=" * 110)
     print(f"PROBLEM: {prob.name}")
@@ -74,14 +83,17 @@ def report(prob: Problem) -> None:
     print(f"{'':<32} {'fl/B':>8} {'(G)':>9} {'(MB)':>9} {'(us)':>7} {'(us)':>7} {'(us)':>7} {'':>10} {'':>8}")
     print("-" * 110)
     counts = {}
-    for r in results:
+    for r in display_rows:
         axes_str = ", ".join(f"{k}={v}" for k, v in r["axes"].items())[:30]
         print(f"{axes_str:<32} {r['ai']:>8.1f} {r['flops']/1e9:>8.3f} {r['bytes']/1e6:>9.2f} "
               f"{r['t_compute_us']:>7.2f} {r['t_memory_us']:>7.2f} {r['t_sol_us']:>7.2f} "
               f"{r['regime']:>10} {r['mfu_ceiling']:>8.3f}")
+    # Regime counts are over ALL rows, not just displayed ones — gives the right
+    # signal for "recommended metric" even in --smoke mode.
+    for r in results:
         counts[r["regime"]] = counts.get(r["regime"], 0) + 1
     print("-" * 110)
-    print(f"regime: {counts}")
+    print(f"regime: {counts}" + (f"  (showing {len(display_rows)}/{len(results)} smoke rows)" if smoke else ""))
     _recommend(counts, len(results))
     print()
 
@@ -802,5 +814,13 @@ PROBLEMS = [
 
 
 if __name__ == "__main__":
+    import argparse
+    ap = argparse.ArgumentParser(description="Tier-1 batch roofline analyzer")
+    ap.add_argument("--smoke", action="store_true",
+                    help="show 3 representative workloads per problem (small/mid/large)")
+    ap.add_argument("--problem", help="only run this problem (substring match on name)")
+    args = ap.parse_args()
     for p in PROBLEMS:
-        report(p)
+        if args.problem and args.problem not in p.name:
+            continue
+        report(p, smoke=args.smoke)

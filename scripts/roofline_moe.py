@@ -323,10 +323,16 @@ DET_PROBLEMS: list[DetSpec] = [
 # ---------------------------------------------------------------------------
 # Report
 # ---------------------------------------------------------------------------
-def report_sim(spec: MoESpec) -> None:
+def _smoke_select(rows: list) -> list:
+    n = len(rows)
+    return rows if n <= 3 else [rows[0], rows[n // 2], rows[-1]]
+
+
+def report_sim(spec: MoESpec, smoke: bool = False) -> None:
     rows_in = load_workload(spec.subdir)
     results = [spec.analyze_row(r["axes"]) for r in rows_in]
     results.sort(key=lambda r: r["t_sol_grouped_us"])
+    display_rows = _smoke_select(results) if smoke else results
 
     print("=" * 130)
     print(f"PROBLEM (MoE-sim): {spec.name}")
@@ -345,7 +351,7 @@ def report_sim(spec: MoESpec) -> None:
           f"{'(G)':>9} {'(MB)':>9} {'(us)':>9} {'(x)':>8} {'':>10} {'':>8}")
     print("-" * 130)
     counts = {}
-    for r in results:
+    for r in display_rows:
         axes = r["axes"]
         ax_str = (f"B={axes['batch_size']} S={axes['seq_len']}"
                   if "batch_size" in axes and "seq_len" in axes else
@@ -356,16 +362,19 @@ def report_sim(spec: MoESpec) -> None:
               f"{r['ai']:>7.1f} {r['flops']/1e9:>8.2f} {r['bytes']/1e6:>8.2f} "
               f"{r['t_sol_grouped_us']:>9.1f} {r['serial_overhead']:>7.1f}x "
               f"{r['regime']:>10} {r['mfu_ceiling']:>8.3f}")
+    # regime counts over ALL rows (not just smoke subset)
+    for r in results:
         counts[r["regime"]] = counts.get(r["regime"], 0) + 1
     print("-" * 130)
-    print(f"regime: {counts}")
+    print(f"regime: {counts}" + (f"  (showing {len(display_rows)}/{len(results)} smoke rows)" if smoke else ""))
     print()
 
 
-def report_det(spec: DetSpec) -> None:
+def report_det(spec: DetSpec, smoke: bool = False) -> None:
     rows_in = load_workload(spec.subdir)
     results = [spec.analyze_row(r["axes"]) for r in rows_in]
     results.sort(key=lambda r: r["t_sol_grouped_us"])
+    display_rows = _smoke_select(results) if smoke else results
     print("=" * 100)
     print(f"PROBLEM (MoE-{spec.kind}): {spec.name}")
     if spec.note: print(f"  note: {spec.note}")
@@ -373,17 +382,26 @@ def report_det(spec: DetSpec) -> None:
     print(f"{'axes':<32} {'AI':>7} {'flops':>9} {'bytes':>9} {'t_sol':>9} {'regime':>10} {'mfu_max':>8}")
     print("-" * 100)
     counts = {}
-    for r in results:
+    for r in display_rows:
         axes_str = ", ".join(f"{k}={v}" for k,v in r["axes"].items())[:30]
         print(f"{axes_str:<32} {r['ai']:>7.1f} {r['flops']/1e9:>8.3f} {r['bytes']/1e6:>9.2f} "
               f"{r['t_sol_grouped_us']:>9.2f} {r['regime']:>10} {r['mfu_ceiling']:>8.3f}")
+    for r in results:
         counts[r["regime"]] = counts.get(r["regime"], 0) + 1
     print("-" * 100)
-    print(f"regime: {counts}\n")
+    print(f"regime: {counts}" + (f"  (showing {len(display_rows)}/{len(results)} smoke rows)" if smoke else "") + "\n")
 
 
 if __name__ == "__main__":
+    import argparse
+    ap = argparse.ArgumentParser(description="MoE batch roofline analyzer")
+    ap.add_argument("--smoke", action="store_true",
+                    help="show 3 representative workloads per problem (small/mid/large)")
+    ap.add_argument("--problem", help="only run this problem (substring match on name)")
+    args = ap.parse_args()
     for s in SIM_PROBLEMS:
-        report_sim(s)
+        if args.problem and args.problem not in s.name: continue
+        report_sim(s, smoke=args.smoke)
     for d in DET_PROBLEMS:
-        report_det(d)
+        if args.problem and args.problem not in d.name: continue
+        report_det(d, smoke=args.smoke)
