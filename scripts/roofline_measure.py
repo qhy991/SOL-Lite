@@ -53,8 +53,7 @@ import roofline_moe as t2
 import roofline_l2 as t3
 
 
-PEAK_BW = 3.35e12   # H800 HBM3
-LATENCY_FLOOR_US = 5.0
+from _hardware import PEAK_BW, LATENCY_FLOOR_US
 
 
 # ---------------------------------------------------------------------------
@@ -283,6 +282,7 @@ def cmd_list(args):
 
 def main():
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    import _hardware; _hardware.add_hardware_arg(p)
     sub = p.add_subparsers(dest="cmd", required=True)
 
     pp = sub.add_parser("process", help="Process a sol-execbench trace JSONL")

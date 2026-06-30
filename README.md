@@ -71,9 +71,9 @@ uv run scripts/run_dataset.py data/benchmark/Contest/L1/069_rms_norm \
 ## Roofline analysis (H800)
 
 Beyond raw `speedup_factor`, this repo includes an offline roofline analyzer
-that classifies each workload row's regime against the H800 SXM5 peaks
-(BF16 989 TFLOPS, FP8 1979 TFLOPS, HBM3 3.35 TB/s) and tells you **which
-metric to report** for that row. The supported regimes are:
+that classifies each workload row's regime against configurable GPU peaks
+(default H800; switch via `--hardware`) and tells you **which metric to
+report** for that row. The supported regimes are:
 
 | regime | when | primary metric |
 |---|---|---|
@@ -187,6 +187,22 @@ so any trace or solution can be processed regardless of tier.
 - The back-to-back-launch timing methodology in `scripts/roofline_bench.py`
   is adapted from [SOLBench-H800](https://github.com/runboo-fly/SOLBench-H800)
   (`harness.py`).
+
+## Hardware presets
+
+All analyzers and the timing engine accept `--hardware {H800|H100|H200|B200|A100|H800_PCIE|H100_PCIE}`
+(or set `SOL_LITE_HARDWARE` env var). The default is **H800 SXM5**.
+Presets are dense Tensor-Core peaks (no sparsity assumptions):
+
+| GPU | BF16 TFLOPS | FP8 TFLOPS | HBM TB/s | ridge_BF16 | ridge_FP8 |
+|---|---:|---:|---:|---:|---:|
+| H800 / H100 SXM | 989 | 1979 | 3.35 | 295 | 591 |
+| H800 / H100 PCIe | 756 | 1513 | 2.00 | 378 | 756 |
+| H200 SXM | 989 | 1979 | 4.80 | 206 | 412 |
+| B200 SXM | 2250 | 4500 | 8.00 | 281 | 562 |
+| A100 SXM | 312 | — | 2.04 | 153 | — |
+
+Inspect: `uv run python scripts/_hardware.py`
 
 ## License
 

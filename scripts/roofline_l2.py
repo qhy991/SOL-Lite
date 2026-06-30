@@ -17,10 +17,7 @@ from typing import Callable
 
 CONTEST_ROOT = Path(__file__).resolve().parent.parent / "data" / "benchmark" / "Contest"
 
-PEAK_BF16  = 989e12
-PEAK_BW    = 3.35e12
-RIDGE_BF16 = PEAK_BF16 / PEAK_BW
-LATENCY_FLOOR_US = 5.0
+from _hardware import PEAK_BF16, PEAK_BW, RIDGE_BF16, LATENCY_FLOOR_US
 
 
 @dataclass
@@ -454,6 +451,7 @@ def report_problem(prob: L2Problem, smoke: bool = True) -> None:
 if __name__ == "__main__":
     import argparse
     ap = argparse.ArgumentParser(description="L2 multi-kernel batch roofline analyzer")
+    import _hardware; _hardware.add_hardware_arg(ap)
     ap.add_argument("--full", action="store_true",
                     help="show every workload row (default: smoke 3 reps per problem)")
     ap.add_argument("--problem", help="only run this problem (substring match on name)")

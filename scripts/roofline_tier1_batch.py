@@ -16,13 +16,9 @@ from typing import Callable
 
 CONTEST_ROOT = Path(__file__).resolve().parent.parent / "data" / "benchmark" / "Contest"
 
-# H800 SXM5 peaks
-PEAK_BF16  = 989e12
-PEAK_FP8   = 1979e12
-PEAK_BW    = 3.35e12
-RIDGE_BF16 = PEAK_BF16 / PEAK_BW   # 295
-RIDGE_FP8  = PEAK_FP8  / PEAK_BW   # 591
-LATENCY_FLOOR_US = 5.0
+# H800 SXM5 peaks (override via env var SOL_LITE_HARDWARE=B200 / H200 / ...)
+from _hardware import (PEAK_BF16, PEAK_FP8, PEAK_BW,
+                       RIDGE_BF16, RIDGE_FP8, LATENCY_FLOOR_US)
 
 
 @dataclass
@@ -816,6 +812,7 @@ PROBLEMS = [
 if __name__ == "__main__":
     import argparse
     ap = argparse.ArgumentParser(description="Tier-1 batch roofline analyzer")
+    import _hardware; _hardware.add_hardware_arg(ap)
     ap.add_argument("--smoke", action="store_true",
                     help="show 3 representative workloads per problem (small/mid/large)")
     ap.add_argument("--problem", help="only run this problem (substring match on name)")

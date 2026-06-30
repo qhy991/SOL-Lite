@@ -289,7 +289,8 @@ def bench_problem(problem_dir: Path, defn: dict, solution_path: Path | None,
         mfu_ceiling = a["mfu_ceiling"]
         t_sec = lat_us * 1e-6
         mfu = (flops / t_sec) / peak if flops else 0.0
-        bw  = (bytes_ / t_sec) / 3.35e12 if bytes_ else 0.0
+        from _hardware import PEAK_BW
+        bw  = (bytes_ / t_sec) / PEAK_BW if bytes_ else 0.0
         sol = a["t_sol_us"] / lat_us if lat_us > 0 else 0.0
 
         axes_str = ", ".join(f"{k}={v}" for k, v in axes.items())[:30]
@@ -359,6 +360,7 @@ def main():
         description="Standalone roofline benchmark (no sol-execbench needed).",
         epilog="Timing engine borrowed from SOLBench-H800; metrics layered with our regime classifier."
     )
+    import _hardware; _hardware.add_hardware_arg(ap)
     ap.add_argument("problem", help="problem path or subdir, e.g. L1/069_rms_norm")
     ap.add_argument("--solution", help="path to a .py with a run() function "
                                        "(default: the problem's reference.py)")

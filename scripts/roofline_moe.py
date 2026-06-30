@@ -22,10 +22,7 @@ import numpy as np
 
 CONTEST_ROOT = Path(__file__).resolve().parent.parent / "data" / "benchmark" / "Contest"
 
-PEAK_BF16  = 989e12
-PEAK_FP8   = 1979e12
-PEAK_BW    = 3.35e12
-LATENCY_FLOOR_US = 5.0
+from _hardware import (PEAK_BF16, PEAK_FP8, PEAK_BW, LATENCY_FLOOR_US)
 
 
 # ---------------------------------------------------------------------------
@@ -395,6 +392,7 @@ def report_det(spec: DetSpec, smoke: bool = False) -> None:
 if __name__ == "__main__":
     import argparse
     ap = argparse.ArgumentParser(description="MoE batch roofline analyzer")
+    import _hardware; _hardware.add_hardware_arg(ap)
     ap.add_argument("--smoke", action="store_true",
                     help="show 3 representative workloads per problem (small/mid/large)")
     ap.add_argument("--problem", help="only run this problem (substring match on name)")

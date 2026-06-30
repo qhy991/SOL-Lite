@@ -187,6 +187,7 @@ def write_summary(results: list[dict], csv_path: Path, md_path: Path) -> None:
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    import _hardware; _hardware.add_hardware_arg(ap)
     ap.add_argument("--sol-baseline", default="/home/qinhaiyan/sol-baseline",
                     help="path to sol-baseline checkout")
     ap.add_argument("--smoke", action="store_true",

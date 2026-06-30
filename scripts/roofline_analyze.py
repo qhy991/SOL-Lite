@@ -17,16 +17,14 @@ from typing import Callable
 CONTEST_ROOT = Path(__file__).resolve().parent.parent / "data" / "benchmark" / "Contest"
 
 # ---------------------------------------------------------------------------
-# H800 SXM5 peaks
+# H800 SXM5 peaks (override via env var SOL_LITE_HARDWARE)
 # ---------------------------------------------------------------------------
-PEAK_BF16_FP16_FLOPS = 989e12       # Tensor Core dense, BF16/FP16, no sparsity
-PEAK_FP8_FLOPS       = 1979e12      # Tensor Core dense, FP8
-PEAK_HBM_BW          = 3.35e12      # HBM3, 80 GB SXM5
-RIDGE_FP16           = PEAK_BF16_FP16_FLOPS / PEAK_HBM_BW   # 295
-RIDGE_FP8            = PEAK_FP8_FLOPS       / PEAK_HBM_BW   # 591
-
-# A kernel that runs in less than this is launch/occupancy-bound, not roofline-bound.
-LATENCY_FLOOR_US = 5.0
+from _hardware import (PEAK_BF16 as PEAK_BF16_FP16_FLOPS,
+                       PEAK_FP8  as PEAK_FP8_FLOPS,
+                       PEAK_BW   as PEAK_HBM_BW,
+                       RIDGE_BF16 as RIDGE_FP16,
+                       RIDGE_FP8,
+                       LATENCY_FLOOR_US)
 
 DTYPE_BYTES = {
     "float32": 4, "float16": 2, "bfloat16": 2,

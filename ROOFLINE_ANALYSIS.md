@@ -10,9 +10,9 @@ and [`roofline_summary.csv`](roofline_summary.csv). This file is the
 
 ---
 
-## 1. The hardware roofline (H800 SXM5)
+## 1. The hardware roofline (default: H800 SXM5)
 
-| Quantity | Value |
+| Quantity | Value (H800 SXM5) |
 |---|---|
 | BF16 / FP16 Tensor Core peak | 989 TFLOPS |
 | FP8 Tensor Core peak | 1979 TFLOPS |
@@ -25,13 +25,17 @@ Ridge = peak_FLOPs / peak_BW. It is the arithmetic intensity above which
 a kernel is compute-bound and below which it is memory-bound. The ridge
 is purely a hardware property — independent of any kernel implementation.
 
-H800 PCIe has different numbers (756 TFLOPS BF16, 2.0 TB/s HBM2e); the
-analyzers default to SXM5 since that is the typical HGX deployment.
+Other GPUs can be targeted via `--hardware {H800|H100|H200|B200|A100|...}`
+on every analyzer / measurement entry point, or via the `SOL_LITE_HARDWARE`
+env var. The full preset table is at the bottom of [README.md](README.md).
+The chosen GPU only changes the ridge and ceiling constants; the regime
+classifier logic (and FLOPs / bytes computation) is identical.
 
-The current `nvidia-smi` on the build machine returns "NVIDIA B200" (not
-H800). Roofline numbers are H800; analyses do not require running on H800
-since the ceilings are analytical, but **measured** MFU/BW% must come from
-H800 to be physically meaningful.
+When the hardware running the kernel differs from the hardware the
+ceilings are computed for (e.g. measuring on B200 with H800 ceilings),
+MFU and BW% will reflect the *target* hardware's saturation, not the
+*measurement* hardware's. Set `--hardware` to match the measurement GPU
+to get directly-interpretable [0, 1] ratios.
 
 ---
 
