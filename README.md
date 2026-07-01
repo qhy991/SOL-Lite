@@ -187,6 +187,13 @@ so any trace or solution can be processed regardless of tier.
 - The back-to-back-launch timing methodology in `scripts/roofline_bench.py`
   is adapted from [SOLBench-H800](https://github.com/runboo-fly/SOLBench-H800)
   (`harness.py`).
+- Per-workload `(flops, bytes_moved)` in `data/costs/ray234_h800.jsonl`
+  comes from Team Fudan's Ray-234 submission to
+  [SoL-Contest-InfiniAI](https://github.com/qhy991/SoL-Contest-InfiniAI).
+  Our analytical formulas over-count bytes by up to 150× for MoE
+  problems (they don't model L2 cache reuse), so the per-UUID Ray-234
+  data is preferred when available. See [DISAGREEMENTS.md](DISAGREEMENTS.md)
+  for the full root-cause analysis.
 
 ## Hardware presets
 

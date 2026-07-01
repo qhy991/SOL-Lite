@@ -260,6 +260,7 @@ def bench_problem(problem_dir: Path, defn: dict, solution_path: Path | None,
     out_rows = []
     for w in rows:
         axes = w["axes"]
+        uuid = w.get("uuid")
         torch.manual_seed(0)
         kwargs = generate_inputs(defn, axes, get_inputs_fn, device)
         if isinstance(kwargs, dict):
@@ -282,26 +283,31 @@ def bench_problem(problem_dir: Path, defn: dict, solution_path: Path | None,
 
         lat_us = time_kernel(call_fn, n_batch, warmup, groups)
 
-        # Roofline classification + achieved metrics
-        a = handler.evaluate(axes)
+        # Roofline classification + achieved metrics; uses Ray-234 per-UUID
+        # costs when available (accurate for MoE / paged / Quant FP8),
+        # otherwise falls back to the analytical formula.
+        a = handler.evaluate(axes, uuid=uuid)
         flops, bytes_, peak = a["flops"], a["bytes"], a["peak"]
         regime = a["regime"]
         mfu_ceiling = a["mfu_ceiling"]
+        cost_source = a.get("cost_source", "analytic")
         t_sec = lat_us * 1e-6
-        mfu = (flops / t_sec) / peak if flops else 0.0
+        mfu = (flops / t_sec) / peak if (flops and peak) else 0.0
         from _hardware import PEAK_BW
         bw  = (bytes_ / t_sec) / PEAK_BW if bytes_ else 0.0
         sol = a["t_sol_us"] / lat_us if lat_us > 0 else 0.0
 
         axes_str = ", ".join(f"{k}={v}" for k, v in axes.items())[:30]
+        src_tag = " [r234]" if cost_source == "ray234" else ""
         print(f"{axes_str:<32} {regime:>10} {lat_us:>10.2f} "
-              f"{mfu:>7.1%} {mfu_ceiling:>9.3f} {bw:>7.1%} {sol:>7.1%}")
+              f"{mfu:>7.1%} {mfu_ceiling:>9.3f} {bw:>7.1%} {sol:>7.1%}{src_tag}")
 
         out_rows.append({
             "problem":      name,
-            "uuid":         w.get("uuid"),
+            "uuid":         uuid,
             "axes":         json.dumps(axes),
             "regime":       regime,
+            "cost_source":  cost_source,
             "latency_us":   lat_us,
             "mfu":          mfu,
             "mfu_ceiling":  mfu_ceiling,

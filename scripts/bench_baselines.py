@@ -132,6 +132,7 @@ def benchmark_one(b: dict, smoke: bool, n_batch: int, warmup: int, groups: int,
 def write_summary(results: list[dict], csv_path: Path, md_path: Path) -> None:
     # Per-row CSV
     fieldnames = ["definition","lib","category","uuid","axes","regime",
+                  "cost_source",
                   "latency_us","mfu","mfu_ceiling","bandwidth_utilization",
                   "sol_efficiency","ai","t_sol_us","flops","bytes","peak"]
     with csv_path.open("w", newline="") as f:

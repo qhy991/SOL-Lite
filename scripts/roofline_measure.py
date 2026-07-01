@@ -54,6 +54,7 @@ import roofline_l2 as t3
 
 
 from _hardware import PEAK_BW, LATENCY_FLOOR_US
+import _costs
 
 
 # ---------------------------------------------------------------------------
@@ -76,25 +77,44 @@ class Handler:
         self.peak = peak
         self.note = note
 
-    def evaluate(self, axes: dict) -> dict:
-        """Return (flops, bytes, peak, regime, t_sol_us, mfu_ceiling)."""
-        if self.kind == "tier1":
-            flops, bytes_, peak = self.compute_fn(axes)
+    def evaluate(self, axes: dict, uuid: str | None = None) -> dict:
+        """Return (flops, bytes, peak, regime, t_sol_us, mfu_ceiling, cost_source).
+
+        If a workload UUID is supplied and Ray-234 per-UUID costs are
+        loaded, use those authoritative (flops, bytes, precision) values —
+        our analytical formulas are known to over-count for MoE (30-150x,
+        L2-cache-aware), Quant FP8 (2x, wrong dtype byte-size), and paged
+        decode (30-70x, whole-cache vs indexed pages). See DISAGREEMENTS.md.
+
+        Falls back to the analytical formula when uuid is missing or has
+        no cost entry.
+        """
+        cost = _costs.lookup(uuid)
+        if cost is not None:
+            # Authoritative Ray-234 numbers. Resolve peak from declared precision.
+            flops  = float(cost.get("flops") or 0.0)
+            bytes_ = float(cost.get("bytes_moved") or 0.0)
+            prec   = (cost.get("precision") or "bf16").lower()
+            # Import lazily so hardware overrides propagate correctly
+            from _hardware import PEAK_BF16, PEAK_FP8
+            peak = PEAK_FP8 if prec.startswith("fp8") or prec.startswith("float8") else PEAK_BF16
+            cost_source = "ray234"
+        elif self.kind == "tier1":
+            flops, bytes_, peak = self.compute_fn(axes); cost_source = "analytic"
         elif self.kind == "moe-sim":
-            # compute_fn is the MoESpec — use analyze_row to get realized FLOPs/bytes
             r = self.compute_fn.analyze_row(axes)
             flops, bytes_, peak = r["flops"], r["bytes"], self.compute_fn.peak
+            cost_source = "analytic"
         elif self.kind == "moe-det":
             r = self.compute_fn.analyze_row(axes)
-            # DetSpec.analyze_row doesn't expose peak; recover via fn signature.
             flops, bytes_, _peak = self.compute_fn.fn(axes)
-            peak = _peak
+            peak = _peak; cost_source = "analytic"
         elif self.kind == "l2":
             ops = self.compute_fn.decompose(axes)
             results = [op.metrics() for op in ops]
             flops = sum(x["flops"] for x in results)
             bytes_ = sum(x["bytes"] for x in results)
-            peak = t3.PEAK_BF16
+            peak = t3.PEAK_BF16; cost_source = "analytic"
         else:
             raise ValueError(f"unknown kind: {self.kind}")
 
@@ -106,9 +126,10 @@ class Handler:
         elif ai > 2*ridge:    regime = "compute"
         elif ai < 0.5*ridge:  regime = "memory"
         else:                 regime = "balanced"
-        mfu_ceiling = min(1.0, PEAK_BW * ai / peak)
+        mfu_ceiling = min(1.0, PEAK_BW * ai / peak) if peak else 0.0
         return dict(flops=flops, bytes=bytes_, peak=peak, ai=ai,
-                    t_sol_us=t_sol_us, regime=regime, mfu_ceiling=mfu_ceiling)
+                    t_sol_us=t_sol_us, regime=regime, mfu_ceiling=mfu_ceiling,
+                    cost_source=cost_source)
 
 
 def build_registry() -> dict[str, Handler]:
@@ -128,13 +149,15 @@ def build_registry() -> dict[str, Handler]:
 # Per-row measurement: take t_measured_us from trace, compute achieved metrics
 # ---------------------------------------------------------------------------
 def measure(handler: Handler, axes: dict, t_measured_us: float,
-            speedup_factor: float | None = None) -> dict:
-    a = handler.evaluate(axes)
+            speedup_factor: float | None = None,
+            uuid: str | None = None) -> dict:
+    a = handler.evaluate(axes, uuid=uuid)
     flops, bytes_, peak = a["flops"], a["bytes"], a["peak"]
     achieved_flops_per_s = flops / (t_measured_us * 1e-6) if t_measured_us > 0 else 0.0
     achieved_bytes_per_s = bytes_ / (t_measured_us * 1e-6) if t_measured_us > 0 else 0.0
     return {
         "regime":               a["regime"],
+        "cost_source":          a.get("cost_source", "analytic"),
         "flops":                flops,
         "bytes":                bytes_,
         "ai":                   a["ai"],
@@ -144,7 +167,7 @@ def measure(handler: Handler, axes: dict, t_measured_us: float,
         "t_measured_us":        t_measured_us,
         "achieved_tflops":      achieved_flops_per_s / 1e12,
         "achieved_gbps":        achieved_bytes_per_s / 1e9,
-        "mfu":                  achieved_flops_per_s / peak,
+        "mfu":                  achieved_flops_per_s / peak if peak else 0.0,
         "mfu_ceiling":          a["mfu_ceiling"],
         "bandwidth_utilization": achieved_bytes_per_s / PEAK_BW,
         "sol_efficiency":       a["t_sol_us"] / t_measured_us if t_measured_us > 0 else 0.0,
@@ -172,7 +195,9 @@ def process_trace(trace_path: Path, registry: dict[str, Handler]):
         perf = (evaluation.get("performance") or {})
         latency_ms = perf.get("latency_ms")
         speedup = perf.get("speedup_factor")
-        axes = (trace.get("workload") or {}).get("axes")
+        workload = trace.get("workload") or {}
+        axes = workload.get("axes")
+        uuid = workload.get("uuid")
 
         if status != "PASSED" or latency_ms is None or axes is None:
             yield trace, None, f"skip ({status})"
@@ -182,7 +207,7 @@ def process_trace(trace_path: Path, registry: dict[str, Handler]):
             yield trace, None, f"no analyzer for definition '{defn}'"
             continue
         try:
-            r = measure(handler, axes, latency_ms * 1000, speedup)
+            r = measure(handler, axes, latency_ms * 1000, speedup, uuid=uuid)
         except Exception as e:
             yield trace, None, f"analyzer error on '{defn}': {e}"
             continue
