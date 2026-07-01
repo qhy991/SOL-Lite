@@ -215,9 +215,12 @@ def materialize_scalars(workload_inputs: dict, kwargs: dict,
             key  = v.get("tensor_key")
             if not path or not key:
                 continue
-            # Try a few candidate roots in order
-            for root in (safetensors_root, safetensors_root.parent,
-                         Path("/home/qinhaiyan/sol-execbench")):
+            # Try roots in order: explicit, its parent, $SOL_EXECBENCH_ROOT
+            import os as _os
+            roots = [safetensors_root, safetensors_root.parent]
+            if _os.environ.get("SOL_EXECBENCH_ROOT"):
+                roots.append(Path(_os.environ["SOL_EXECBENCH_ROOT"]))
+            for root in roots:
                 candidate = root / path if not Path(path).is_absolute() else Path(path)
                 if candidate.exists():
                     try:
@@ -288,8 +291,12 @@ def bench_problem(problem_dir: Path, defn: dict, solution_path: Path | None,
         torch.manual_seed(0)
         kwargs = generate_inputs(defn, axes, get_inputs_fn, device)
         if isinstance(kwargs, dict):
+            # Safetensors root default = $SOL_EXECBENCH_ROOT, then None so the
+            # candidate loop in materialize_scalars() falls back to abs paths.
+            import os as _os
+            st_root = Path(_os.environ.get("SOL_EXECBENCH_ROOT") or ".")
             kwargs = materialize_scalars(w.get("inputs", {}), kwargs,
-                                          safetensors_root=Path("/home/qinhaiyan/sol-execbench"))
+                                          safetensors_root=st_root)
         else:
             kwargs = list(kwargs)   # tuples too
 

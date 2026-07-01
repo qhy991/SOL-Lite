@@ -6,12 +6,12 @@ report regime-aware metrics (MFU / mfu_ceiling / BW% / SoL_eff / speedup
 vs. the reference). Aggregates a per-baseline summary CSV + markdown.
 
 Requires the sol-execbench environment (torch + cuda + flashinfer +
-flash_attn + liger + causal_conv1d). Run from inside that env:
+flash_attn + liger + causal_conv1d). Run from inside that env, and point
+--sol-baseline at your sol-baseline checkout (env var: SOL_BASELINE_ROOT):
 
-    cd /home/qinhaiyan/sol-execbench
-    uv run python /home/qinhaiyan/SOL-Lite/scripts/bench_baselines.py \\
-        --sol-baseline /home/qinhaiyan/sol-baseline \\
-        --smoke -o baseline_roofline.csv
+    export SOL_BASELINE_ROOT=/path/to/sol-baseline
+    uv run --project /path/to/sol-execbench \\
+        python scripts/bench_baselines.py --smoke -o baseline_roofline
 
 (The SOL-Lite venv itself only declares torch as optional; the
 sol-execbench venv already has every baseline library installed.)
@@ -286,8 +286,10 @@ def _emit_v3_submission(result: dict, root: Path, user: str, experiment: str,
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     import _hardware; _hardware.add_hardware_arg(ap)
-    ap.add_argument("--sol-baseline", default="/home/qinhaiyan/sol-baseline",
-                    help="path to sol-baseline checkout")
+    ap.add_argument("--sol-baseline",
+                    default=os.environ.get("SOL_BASELINE_ROOT"),
+                    help="path to sol-baseline checkout "
+                         "(default: $SOL_BASELINE_ROOT)")
     ap.add_argument("--smoke", action="store_true",
                     help="3 representative workloads per problem (recommended)")
     ap.add_argument("--n-batch", type=int, default=30)

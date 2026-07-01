@@ -4,6 +4,7 @@ Outputs a per-problem disagreement table sorted by total disagreement.
 Does NOT modify any analyzer code — purely diagnostic.
 """
 import json
+import os
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -11,7 +12,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import roofline_measure as rm
 
-RAY234 = "/home/qinhaiyan/SoL-Contest-InfiniAI/data/ray234/h800_tsol/workload_costs.jsonl"
+# Ray-234 workload costs source. Default: the copy imported into SOL-Lite at
+# data/costs/ray234_h800.jsonl. Override with:
+#   SOL_LITE_RAY234_JSONL=/path/to/workload_costs.jsonl
+RAY234 = os.environ.get(
+    "SOL_LITE_RAY234_JSONL",
+    str(Path(__file__).resolve().parent.parent / "data" / "costs" / "ray234_h800.jsonl"),
+)
 
 ray234 = {}
 for line in open(RAY234):
