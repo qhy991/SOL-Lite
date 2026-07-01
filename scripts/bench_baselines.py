@@ -311,6 +311,14 @@ def main():
                     help="output file prefix (writes <prefix>.csv and <prefix>.md)")
     args = ap.parse_args()
 
+    if not args.sol_baseline:
+        print("ERROR: --sol-baseline is required. Either pass it explicitly or set",
+              file=sys.stderr)
+        print("       the SOL_BASELINE_ROOT environment variable to the path of your",
+              file=sys.stderr)
+        print("       sol-baseline checkout (https://github.com/qhy991/SOL-Baseline).",
+              file=sys.stderr)
+        sys.exit(2)
     sol_baseline = Path(args.sol_baseline)
     if not sol_baseline.is_dir():
         print(f"ERROR: sol-baseline not found at {sol_baseline}", file=sys.stderr)

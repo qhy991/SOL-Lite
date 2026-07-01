@@ -33,8 +33,46 @@ Each problem directory contains `definition.json`, `reference.py`, and `workload
 
 ## Prerequisites
 
-1. Install [SOL-ExecBench](https://github.com/NVIDIA/SOL-ExecBench) and its dependencies (Python 3.12+, CUDA GPU).
-2. Ensure `sol-execbench` is on your `PATH` (or run from that repo's virtualenv).
+**Minimum (offline analysis only, no GPU needed)**:
+- Python 3.10+
+- `numpy` (pulled in by `uv sync`)
+
+**Full analysis (timing + measurement)**:
+- CUDA GPU (H800 / H100 / H200 / B200 / A100 supported by presets)
+- PyTorch 2.x with matching CUDA build (pulled by `uv sync --extra bench`)
+- If timing sol-baseline kernels: `flashinfer`, `flash-attn`,
+  `liger-kernel`, `causal-conv1d` per each baseline's requirements
+  (typically already present in a sol-execbench environment)
+- `safetensors` (for problems whose workload inputs point at safetensors
+  blobs, e.g. FlashInfer-Bench paged/ragged attention)
+
+## Environment variables
+
+SOL-Lite scripts do not hardcode any paths. Set these before running the
+GPU-bound tooling:
+
+| Variable | Default | Used by | What it points at |
+|---|---|---|---|
+| `SOL_LITE_HARDWARE` | `H800` | all analyzers | GPU preset name (see [Hardware presets](#hardware-presets)); can also be passed as `--hardware {H800\|H100\|H200\|B200\|A100\|H800_PCIE\|H100_PCIE}` |
+| `SOL_BASELINE_ROOT` | *(none — required)* | `bench_baselines.py` | Local checkout of [sol-baseline](https://github.com/qhy991/SOL-Baseline), for reading each baseline's `solution.json` |
+| `SOL_EXECBENCH_ROOT` | *(none — required only if a workload uses safetensors inputs)* | `roofline_bench.py`, `bench_baselines.py` | Local checkout of [sol-execbench](https://github.com/NVIDIA/SOL-ExecBench), because paged/ragged attention workloads reference safetensors blobs from its `data/` tree |
+| `SOL_LITE_RAY234_JSONL` | `data/costs/ray234_h800.jsonl` (bundled) | `_costs.py`, `diagnose_ray234.py` | Path to Ray-234's precomputed per-UUID `workload_costs.jsonl`. The bundled copy is authoritative for the 60 Contest problems; only override if you have newer data |
+
+CLI flags always override env vars.
+
+### One-shot setup
+
+```bash
+# Adjust paths for your machine
+export SOL_BASELINE_ROOT=$HOME/sol-baseline
+export SOL_EXECBENCH_ROOT=$HOME/sol-execbench
+export SOL_LITE_HARDWARE=B200            # or omit to default to H800
+
+# From this repo root
+uv sync                         # numpy only (offline analysis)
+uv sync --extra bench           # add torch (needed for scripts/roofline_bench.py
+                                #  and scripts/bench_baselines.py)
+```
 
 ## Run
 
@@ -166,6 +204,40 @@ uv run python scripts/roofline_measure.py offline 069_rms_norm \
 uv run python scripts/roofline_measure.py list
 ```
 
+### Benchmarking sol-baseline solutions
+
+`bench_baselines.py` walks the sol-baseline checkout, times each kernel,
+and produces a regime-aware CSV + markdown plus optional v3 submission
+directories:
+
+```bash
+# Env vars set as shown above; also need to be in the sol-execbench venv
+# for flashinfer / flash-attn / liger / causal-conv1d imports.
+uv run --project "$SOL_EXECBENCH_ROOT" \
+    python scripts/bench_baselines.py --hardware B200 --smoke \
+    -o baseline_roofline
+
+# Export SoL-Contest-InfiniAI schema-v3 submission dirs at the same time
+uv run --project "$SOL_EXECBENCH_ROOT" \
+    python scripts/bench_baselines.py --hardware B200 --smoke \
+    --emit-v3-submissions data/submissions \
+    --submission-user alice \
+    -o baseline_roofline
+```
+
+Each v3 submission is a self-contained directory:
+
+```
+data/submissions/<user>/<task_id>/r<round>/
+  manifest.json           # SoL-Contest-InfiniAI schema v3
+  solution/README.md
+  solution/baseline.py    # extracted kernel source
+  results/workloads.json  # per-workload t_sol_ms / t_base_ms / mfu / bw
+```
+
+Directly importable via [SoL-Contest-InfiniAI](https://github.com/qhy991/SoL-Contest-InfiniAI)'s
+`lb import-trace`.
+
 ### Three analyzers, one registry
 
 | script | tier | covers |
@@ -175,6 +247,8 @@ uv run python scripts/roofline_measure.py list
 | `roofline_l2.py` | L2 fused multi-kernel blocks | per-op decomposition (10-17 ops/layer) |
 | `roofline_measure.py` | trace augmentation | join sol-execbench traces with the analyzer registry |
 | `roofline_bench.py` | standalone timing | back-to-back launch (borrowed from SOLBench-H800) + regime-aware metrics |
+| `bench_baselines.py` | batch benchmark | walks sol-baseline, times each solution, exports v3 submissions |
+| `diagnose_ray234.py` | cross-check | compare analyzer's per-axes formulas vs Ray-234's per-UUID costs |
 
 `roofline_measure.py` and `roofline_bench.py` share a unified
 `definition-name → handler` registry across all three analyzer tiers,
