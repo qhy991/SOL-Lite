@@ -2,17 +2,22 @@
 name = "sol-lite"
 version = "0.1.0"
 description = "60-problem SOL-ExecBench Contest subset with H800 roofline analysis"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
   "numpy>=1.26",
 ]
 
 [project.optional-dependencies]
-# Required only for the standalone timing engine (scripts/roofline_bench.py).
+# Core benchmarking: torch + safetensors for FlashInfer-Bench inputs.
 # Install with:  uv sync --extra bench
 bench = [
   "torch>=2.0",
+  "safetensors>=0.4",
 ]
+
+# FlashInfer kernels (optional — only needed for FlashInfer-Bench baseline solutions).
+# Requires a custom index or pre-installed wheel. Install separately.
+# flashinfer = ["flashinfer>=0.2"]
 
 [tool.uv]
 package = false

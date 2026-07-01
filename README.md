@@ -2,7 +2,9 @@
 
 Curated **60-problem Contest subset** extracted from [NVIDIA SOL-ExecBench](https://github.com/NVIDIA/SOL-ExecBench).
 
-This repo contains benchmark definitions only. Evaluation uses the upstream [sol-execbench](https://github.com/NVIDIA/SOL-ExecBench) CLI.
+This repo contains benchmark definitions + an independent evaluation harness.
+**No sol-execbench CLI dependency required** for correctness checking, timing,
+or roofline analysis.
 
 ## Problem breakdown
 
@@ -34,17 +36,16 @@ Each problem directory contains `definition.json`, `reference.py`, and `workload
 ## Prerequisites
 
 **Minimum (offline analysis only, no GPU needed)**:
-- Python 3.10+
+- Python 3.11+
 - `numpy` (pulled in by `uv sync`)
 
-**Full analysis (timing + measurement)**:
+**Full analysis (correctness + timing + roofline)**:
 - CUDA GPU (H800 / H100 / H200 / B200 / A100 supported by presets)
 - PyTorch 2.x with matching CUDA build (pulled by `uv sync --extra bench`)
+- `safetensors>=0.4` (pulled by `uv sync --extra bench`)
+- For FlashInfer-Bench problems: download safetensors data files (see below)
 - If timing sol-baseline kernels: `flashinfer`, `flash-attn`,
   `liger-kernel`, `causal-conv1d` per each baseline's requirements
-  (typically already present in a sol-execbench environment)
-- `safetensors` (for problems whose workload inputs point at safetensors
-  blobs, e.g. FlashInfer-Bench paged/ragged attention)
 
 ## Environment variables
 
@@ -55,7 +56,7 @@ GPU-bound tooling:
 |---|---|---|---|
 | `SOL_LITE_HARDWARE` | `H800` | all analyzers | GPU preset name (see [Hardware presets](#hardware-presets)); can also be passed as `--hardware {H800\|H100\|H200\|B200\|A100\|H800_PCIE\|H100_PCIE}` |
 | `SOL_BASELINE_ROOT` | *(none — required)* | `bench_baselines.py` | Local checkout of [sol-baseline](https://github.com/qhy991/SOL-Baseline), for reading each baseline's `solution.json` |
-| `SOL_EXECBENCH_ROOT` | *(none — required only if a workload uses safetensors inputs)* | `roofline_bench.py`, `bench_baselines.py` | Local checkout of [sol-execbench](https://github.com/NVIDIA/SOL-ExecBench), because paged/ragged attention workloads reference safetensors blobs from its `data/` tree |
+| `SOL_EXECBENCH_ROOT` | *(none — optional fallback)* | `harness/inputs.py` | Local checkout of [sol-execbench](https://github.com/NVIDIA/SOL-ExecBench), used as fallback for safetensors blobs. Prefer downloading with `scripts/download_flashinfer_traces.py` |
 | `SOL_LITE_RAY234_JSONL` | `data/costs/ray234_h800.jsonl` (bundled) | `_costs.py`, `diagnose_ray234.py` | Path to Ray-234's precomputed per-UUID `workload_costs.jsonl`. The bundled copy is authoritative for the 60 Contest problems; only override if you have newer data |
 
 CLI flags always override env vars.
@@ -65,39 +66,63 @@ CLI flags always override env vars.
 ```bash
 # Adjust paths for your machine
 export SOL_BASELINE_ROOT=$HOME/sol-baseline
-export SOL_EXECBENCH_ROOT=$HOME/sol-execbench
 export SOL_LITE_HARDWARE=B200            # or omit to default to H800
 
 # From this repo root
 uv sync                         # numpy only (offline analysis)
-uv sync --extra bench           # add torch (needed for scripts/roofline_bench.py
-                                #  and scripts/bench_baselines.py)
+uv sync --extra bench           # add torch + safetensors (needed for GPU benchmarks)
 ```
 
 ## Run
 
-From this repo root, using the bundled batch script:
+The main entry point is `scripts/run_contest.py` — a self-contained harness
+that does **not** depend on sol-execbench.
 
 ```bash
-# All 60 Contest problems (reference implementation)
-uv run scripts/run_dataset.py data/benchmark --category Contest -o ./out
+# All 60 Contest problems (correctness + timing + roofline)
+uv sync --extra bench
+uv run python scripts/run_contest.py --all -o ./out
 
-# One subset
-uv run scripts/run_dataset.py data/benchmark/Contest/L1 -o ./out
+# Smoke test (3 rows per problem, fast CI)
+uv run python scripts/run_contest.py --all --smoke
+
+# One category
+uv run python scripts/run_contest.py --category L1
+uv run python scripts/run_contest.py --category L2 Quant
 
 # Single problem
-uv run scripts/run_dataset.py data/benchmark/Contest/L1/069_rms_norm -o ./out
+uv run python scripts/run_contest.py L1/069_rms_norm
 
 # Custom solution
-uv run scripts/run_dataset.py data/benchmark/Contest/L1/069_rms_norm \
-  --solution-name solution.py -o ./out
+uv run python scripts/run_contest.py L1/069_rms_norm --solution my_kernel.py
+
+# Correctness only (no timing)
+uv run python scripts/run_contest.py --all --smoke --no-timing
+
+# Force timing mode
+uv run python scripts/run_contest.py --all --smoke --timing-mode single
 ```
 
-Quick smoke test:
+### FlashInfer-Bench safetensors
+
+5 FlashInfer-Bench problems require safetensors data files. Download them:
 
 ```bash
-uv run scripts/run_dataset.py data/benchmark/Contest/L1/069_rms_norm \
-  --max-workloads 1 -o ./out
+uv run python scripts/download_flashinfer_traces.py
+# -> data/flashinfer-trace/
+```
+
+If you already have a sol-execbench checkout, set `$SOL_EXECBENCH_ROOT` as
+a fallback. The harness will search `data/flashinfer-trace/` first, then
+`$SOL_EXECBENCH_ROOT`.
+
+### Legacy: sol-execbench CLI wrapper
+
+The old `run_dataset.py` still works but wraps sol-execbench CLI via
+subprocess. It is deprecated in favor of `run_contest.py`. To use it:
+
+```bash
+uv run scripts/run_dataset.py data/benchmark --category Contest -o ./out
 ```
 
 ## Upstream links
@@ -130,12 +155,12 @@ for the full per-problem regime table, and
 ### Workflow
 
 ```bash
-# 1. Run sol-execbench, save trace JSONL
-uv run scripts/run_dataset.py data/benchmark/Contest/L1/069_rms_norm \
-    -o ./out
+# 1. Run the independent harness, save trace JSONL
+uv run python scripts/run_contest.py L1/069_rms_norm --smoke -o ./out
 
 # 2. Feed the trace into the roofline measurement tool
-uv run python scripts/roofline_measure.py process ./out/traces.jsonl \
+uv run python scripts/roofline_measure.py process \
+    ./out/Contest/L1/069_rms_norm/traces.jsonl \
     -o ./out/traces.with_roofline.jsonl --report
 ```
 
@@ -242,13 +267,15 @@ Directly importable via [SoL-Contest-InfiniAI](https://github.com/qhy991/SoL-Con
 
 | script | tier | covers |
 |---|---|---|
+| `run_contest.py` | **main entry** | correctness + timing + roofline for all 60 problems |
 | `roofline_tier1_batch.py` | dense single-kernel / multi-GEMM chains | RMSNorm, GEMM, RoPE, MLA, MLP, attention variants |
 | `roofline_moe.py` | data-dependent MoE | routing simulated via random gate logits → realized FLOPs/bytes |
 | `roofline_l2.py` | L2 fused multi-kernel blocks | per-op decomposition (10-17 ops/layer) |
-| `roofline_measure.py` | trace augmentation | join sol-execbench traces with the analyzer registry |
-| `roofline_bench.py` | standalone timing | back-to-back launch (borrowed from SOLBench-H800) + regime-aware metrics |
+| `roofline_measure.py` | trace augmentation | join harness traces with the analyzer registry |
+| `roofline_bench.py` | standalone timing | single-problem back-to-back launch + regime-aware metrics |
 | `bench_baselines.py` | batch benchmark | walks sol-baseline, times each solution, exports v3 submissions |
 | `diagnose_ray234.py` | cross-check | compare analyzer's per-axes formulas vs Ray-234's per-UUID costs |
+| `download_flashinfer_traces.py` | data | download safetensors files for FlashInfer-Bench problems |
 
 `roofline_measure.py` and `roofline_bench.py` share a unified
 `definition-name → handler` registry across all three analyzer tiers,
