@@ -1,6 +1,29 @@
-# sol-baseline × SOL-Lite roofline report
+# sol-baseline × SOL-Lite roofline report (B200, Ray-234 costs)
 
-Tested 44 baselines, 8 errored.
+Tested 52 baselines: **44 successfully timed, 8 errored** on
+`ModuleNotFoundError: flash_attn / liger_kernel` in the current
+sol-execbench venv state (both libs were present in earlier runs; the
+failures are unrelated to the analyzer changes).
+
+**All 129 successful rows use `cost_source=ray234`** — Ray-234's
+per-UUID `(flops, bytes_moved)` data is applied everywhere available.
+Compared to the previous purely-analytical run, MoE bytes dropped
+30–150× (L2-cache-aware weight reuse), and Quant FP8 bytes dropped 2×
+(fp8 internal path). See [DISAGREEMENTS.md](DISAGREEMENTS.md).
+
+## Setup
+
+- Hardware: **NVIDIA B200** (`--hardware B200`)
+- ridge_BF16 = 281 FLOPs/byte, ridge_FP8 = 562
+- Cost source: `data/costs/ray234_h800.jsonl` (1019 per-UUID entries)
+  from [SoL-Contest-InfiniAI](https://github.com/qhy991/SoL-Contest-InfiniAI)
+- Timing: back-to-back cuda.Event launches, 5 groups × 30 launches, median
+
+## Columns
+
+- `geomean_us` — geometric mean latency across 3 smoke workload rows
+- `peak_MFU` / `peak_BW%` — max achieved across rows, normalized to B200 ceiling
+- `recommended` — primary metric to report given the per-row regime distribution
 
 All numbers measured on this machine. Columns:
 - `geomean_us` — geometric mean latency across workload rows (smoke = 3 reps)
