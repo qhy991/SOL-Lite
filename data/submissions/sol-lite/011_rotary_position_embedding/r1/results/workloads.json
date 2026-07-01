@@ -1,0 +1,53 @@
+[
+  {
+    "workload_uuid": "3eea88be-9272-5067-9df3-3b20962a63d7",
+    "status": "passed",
+    "axes": {
+      "batch_size": 16,
+      "seq_len": 256
+    },
+    "axes_label": "batch_size=16,seq_len=256",
+    "t_sol_ms": 0.000263184,
+    "t_base_ms": 0.07793813546498617,
+    "mfu_pct": 0.0002989767300676216,
+    "bw_util_pct": 0.3376832130122434,
+    "t_base_over_t_sol": 296.13553812156573,
+    "regime": "latency",
+    "mfu_ceiling": 0.0008853763484440121,
+    "cost_source": "ray234"
+  },
+  {
+    "workload_uuid": "af9ed0ae-9d65-57a2-8215-eec2684d588c",
+    "status": "passed",
+    "axes": {
+      "batch_size": 4,
+      "seq_len": 256
+    },
+    "axes_label": "batch_size=4,seq_len=256",
+    "t_sol_ms": 6.5808e-05,
+    "t_base_ms": 0.07531092961629231,
+    "mfu_pct": 7.735161751292453e-05,
+    "bw_util_pct": 0.0873817390587136,
+    "t_base_over_t_sol": 1144.4038660389665,
+    "regime": "latency",
+    "mfu_ceiling": 0.0008852149012615825,
+    "cost_source": "ray234"
+  },
+  {
+    "workload_uuid": "a7e85ed8-a63d-57a3-8a0d-6c2f00ff586d",
+    "status": "passed",
+    "axes": {
+      "batch_size": 32,
+      "seq_len": 128
+    },
+    "axes_label": "batch_size=32,seq_len=128",
+    "t_sol_ms": 0.000263184,
+    "t_base_ms": 0.07498453458150227,
+    "mfu_pct": 0.00031075326424226575,
+    "bw_util_pct": 0.3509843749365941,
+    "t_base_over_t_sol": 284.9129680432787,
+    "regime": "latency",
+    "mfu_ceiling": 0.0008853763484440121,
+    "cost_source": "ray234"
+  }
+]

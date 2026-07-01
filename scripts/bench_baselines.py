@@ -186,6 +186,103 @@ def write_summary(results: list[dict], csv_path: Path, md_path: Path) -> None:
     md_path.write_text("\n".join(lines) + "\n")
 
 
+def _emit_v3_submission(result: dict, root: Path, user: str, experiment: str,
+                        round_id: int, baseline_source: str) -> Path:
+    """Write one baseline's v3 submission dir under `root/<user>/<task_id>/r<round>/`.
+
+    Matches SoL-Contest-InfiniAI schema v3 (see schema/submission.v3.schema.json
+    at that repo). Produces:
+        <root>/<user>/<task_id>/r<round>/
+          manifest.json
+          solution/{README.md, baseline.py}
+          results/workloads.json
+    """
+    import datetime
+    task_id = result["definition"]
+    lib = result["lib"]
+    tag = f"{user}-{task_id}-{lib}-r{round_id}"
+    outdir = root / user / task_id / f"r{round_id}"
+    (outdir / "solution").mkdir(parents=True, exist_ok=True)
+    (outdir / "results").mkdir(parents=True, exist_ok=True)
+
+    # solution/ dir: README + baseline source
+    (outdir / "solution" / "README.md").write_text(
+        f"# {task_id} — {lib} baseline\n\n"
+        f"Extracted from sol-baseline.\n"
+        f"Timed via SOL-Lite `scripts/bench_baselines.py`.\n"
+    )
+    (outdir / "solution" / "baseline.py").write_text(baseline_source)
+
+    # results/workloads.json — Ray-234 format
+    wl_rows = []
+    for row in result["per_row_rows"]:
+        axes = json.loads(row["axes"]) if isinstance(row.get("axes"), str) else row.get("axes", {})
+        axes_label = ",".join(f"{k}={v}" for k, v in sorted(axes.items()))
+        t_base_ms = row["latency_us"] / 1000.0
+        t_sol_ms = row["t_sol_us"] / 1000.0
+        wl_rows.append({
+            "workload_uuid": row.get("uuid"),
+            "status": "passed",
+            "axes": axes,
+            "axes_label": axes_label,
+            "t_sol_ms": t_sol_ms,
+            "t_base_ms": t_base_ms,
+            "mfu_pct":  row["mfu"] * 100.0,
+            "bw_util_pct": row["bandwidth_utilization"] * 100.0,
+            "t_base_over_t_sol": t_base_ms / t_sol_ms if t_sol_ms > 0 else None,
+            "regime": row["regime"],
+            "mfu_ceiling": row.get("mfu_ceiling"),
+            "cost_source": row.get("cost_source", "analytic"),
+        })
+    (outdir / "results" / "workloads.json").write_text(
+        json.dumps(wl_rows, indent=2) + "\n")
+
+    # manifest.json (v3 schema)
+    import math
+    def gmean(xs):
+        xs = [x for x in xs if x is not None and x > 0]
+        if not xs: return 0.0
+        return math.exp(sum(math.log(x) for x in xs) / len(xs))
+    from _hardware import HARDWARE_NAME
+    manifest = {
+        "schema_version": 3,
+        "submitter": {"user": user, "team": "SOL-Lite"},
+        "run": {
+            "run_id": tag,
+            "experiment_id": experiment,
+            "experiment_label": f"SOL-Lite roofline + {lib} baseline",
+            "competition_id": "fi-bench-v1",
+            "task_id": task_id,
+            "round": round_id,
+            "submitted_at": datetime.datetime.now(datetime.timezone.utc)
+                                            .isoformat(timespec="seconds"),
+            "solution_name": f"sol-baseline/{lib}",
+        },
+        "artifacts": {
+            "solution": {"dir": "solution", "entrypoint": "baseline.py::run",
+                         "files": ["README.md", "baseline.py"]},
+            "results":  {"dir": "results", "trace": "", "workloads": "workloads.json"},
+        },
+        "provenance": {
+            "tool": "SOL-Lite",
+            "tool_version": "bench_baselines.py",
+            "notes": "Timed via back-to-back cuda.Event launches; regime + t_sol "
+                     "from SOL-Lite analyzer with Ray-234 per-UUID cost preference.",
+        },
+        "environment": {"gpu": HARDWARE_NAME, "hardware": HARDWARE_NAME},
+        "token_usage": None,
+        "summary": {
+            "status": "passed",
+            "passed_workloads": len(wl_rows),
+            "total_workloads":  len(wl_rows),
+            "geomean_t_sol_ms": gmean([r["t_sol_ms"] for r in wl_rows]),
+            "geomean_t_base_ms": gmean([r["t_base_ms"] for r in wl_rows]),
+        },
+    }
+    (outdir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    return outdir
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     import _hardware; _hardware.add_hardware_arg(ap)
@@ -196,6 +293,14 @@ def main():
     ap.add_argument("--n-batch", type=int, default=30)
     ap.add_argument("--warmup", type=int, default=25)
     ap.add_argument("--groups", type=int, default=5)
+    ap.add_argument("--emit-v3-submissions", metavar="ROOT",
+                    help="also write SoL-Contest-InfiniAI schema-v3 submission "
+                         "directories under ROOT/{user}/{task_id}/r{round}/")
+    ap.add_argument("--submission-user", default="sol-lite",
+                    help="submitter user name for v3 submissions (default: sol-lite)")
+    ap.add_argument("--submission-experiment", default="sol-lite-baselines",
+                    help="experiment_id for v3 submissions")
+    ap.add_argument("--submission-round", type=int, default=1)
     ap.add_argument("--limit", type=int, default=None,
                     help="only run the first N baselines (for testing)")
     ap.add_argument("--definition", help="filter to one definition")
@@ -239,6 +344,16 @@ def main():
         results.append(r)
         if r.get("error"):
             print(f"  ERROR: {r['error']}\n")
+        elif args.emit_v3_submissions and r.get("per_row_rows"):
+            outdir = _emit_v3_submission(
+                r,
+                root=Path(args.emit_v3_submissions),
+                user=args.submission_user,
+                experiment=args.submission_experiment,
+                round_id=args.submission_round,
+                baseline_source=b["run_source"],
+            )
+            print(f"  v3 → {outdir}")
         sys.stdout.flush()
 
     csv_path = Path(f"{args.out_prefix}.csv")
@@ -248,6 +363,9 @@ def main():
     print(f"\n# done: {n_ok}/{len(results)} ran successfully")
     print(f"# wrote {csv_path}")
     print(f"# wrote {md_path}")
+    if args.emit_v3_submissions:
+        n_v3 = sum(1 for r in results if not r.get("error") and r.get("per_row_rows"))
+        print(f"# wrote {n_v3} v3 submissions under {args.emit_v3_submissions}/{args.submission_user}/")
 
 
 if __name__ == "__main__":

@@ -22,7 +22,7 @@ import numpy as np
 
 CONTEST_ROOT = Path(__file__).resolve().parent.parent / "data" / "benchmark" / "Contest"
 
-from _hardware import (PEAK_BF16, PEAK_FP8, PEAK_BW, LATENCY_FLOOR_US)
+from _hardware import (PEAK_BF16, PEAK_FP8, PEAK_BW, LATENCY_FLOOR_US, L2_SIZE)
 
 
 # ---------------------------------------------------------------------------
@@ -84,16 +84,34 @@ class MoESpec:
 
         # ---- Stage B: expert MLPs (data-dependent) ----
         # Per expert with n tokens: gate+up GEMMs (2*n*H*I each) + silu*up
-        # (4*n*I) + down GEMM (2*n*I*H). Bytes: input (n*H), weights
-        # (3*H*I or [2I,H]+[H,I] = 3HI), output (n*H), all dtype_bytes.
+        # (4*n*I) + down GEMM (2*n*I*H).
+        # Bytes model: activations per-token (cold), weights amortized across
+        # tokens of the same expert but STILL cold-read from HBM per expert...
+        # UNLESS all active experts' weights fit in L2 cache (SOL-Lite/Ray-234
+        # convention: treat as single cold load). This matches Ray-234's much
+        # smaller MoE bytes numbers vs. naively summing per-expert weights.
         flops_per_expert = (2*counts.astype(np.int64)*self.H*self.I*3
                             + 4*counts.astype(np.int64)*self.I)
-        bytes_per_expert = np.where(
+        # Per-expert activation bytes (input + intermediate + output)
+        activation_bytes_per_expert = np.where(
             counts > 0,
-            (2*self.H + 3*self.I) * counts.astype(np.int64) * self.dtype_bytes
-            + 3 * self.H * self.I * self.dtype_bytes,
+            (2*self.H + 3*self.I) * counts.astype(np.int64) * self.dtype_bytes,
             0,
         )
+        # Expert weight bytes: 3*H*I per active expert, but capped by L2 residency
+        n_active = int((counts > 0).sum())
+        weight_per_expert_bytes = 3 * self.H * self.I * self.dtype_bytes
+        total_weight_bytes = n_active * weight_per_expert_bytes
+        # L2-aware: if total weights << L2, they stay resident across the launch
+        # (each read from HBM once). If total weights >> L2, the excess evicts.
+        effective_weight_bytes = min(total_weight_bytes, max(L2_SIZE, weight_per_expert_bytes))
+        bytes_per_expert = activation_bytes_per_expert.copy()
+        # Distribute effective weight bytes across active experts uniformly for
+        # downstream per-expert accounting (only used for serial t_sol estimate)
+        if n_active > 0:
+            per_expert_weight_share = effective_weight_bytes / n_active
+            bytes_per_expert = bytes_per_expert.astype(np.float64)
+            bytes_per_expert[counts > 0] += per_expert_weight_share
         expert_flops = int(flops_per_expert.sum())
         expert_bytes = int(bytes_per_expert.sum())
 
@@ -225,7 +243,8 @@ def group_score_only_fn(E: int, n_group: int, dtype_bytes: int = 4):
     """L1/059: scores → group_mask, no GEMM. Just elementwise + topk per group."""
     def _fn(axes: dict):
         T = _get_tokens(axes)
-        flops = 10 * T * E   # softmax + group aggregation + topk
+        # Ray-234 convention: pure elementwise/topk is memory-bound; flops=0
+        flops = 0
         # Read scores [T, E] fp32, write masked_scores [T, E] + group_mask [T, n_group]
         bytes_ = (T*E + T*E + T*n_group) * dtype_bytes
         return flops, bytes_, PEAK_BF16
@@ -306,9 +325,9 @@ DET_PROBLEMS: list[DetSpec] = [
             note="hidden @ gate.T → topk over groups"),
     DetSpec("Quant/011 fp8_moe_gate_routing H=7168 E=256 (bf16 in/out)",
             "Quant/011_fp8_moe_gate_routing",
-            routing_gemm_fn(H=7168, E=256, dtype_bytes=2, peak=PEAK_BF16),
+            routing_gemm_fn(H=7168, E=256, dtype_bytes=1, peak=PEAK_FP8),
             kind="route",
-            note="bf16 declared in/out, kernel may go fp8 internally"),
+            note="bf16 declared in/out, kernel goes fp8 internally (per Ray-234 convention)"),
     DetSpec("L1/076 batched_dense_moe H=2880 I=2880 E=128",
             "L1/076_batched_expert_forward",
             dense_moe_fn(H=2880, I=2880, E=128, dtype_bytes=4),  # fp32!

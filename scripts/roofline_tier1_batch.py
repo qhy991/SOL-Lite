@@ -124,7 +124,9 @@ def rmsnorm_fn(H: int, residual: bool, dtype_bytes: int = 2):
             N = axes["batch_size"] * axes["seq_len"]
         else:
             N = axes["batch_size"]
-        flops = 5 * N * H
+        # Ray-234 convention: pure memory-bound ops report flops=0 to keep
+        # MFU cleanly interpretable (would otherwise show ~0.003% for RMSNorm)
+        flops = 0
         # read x + (optional residual) + write y; weight is H, amortized but counted once
         in_tensors = 2 if residual else 1
         bytes_ = (in_tensors * N * H + N * H + H) * dtype_bytes
@@ -164,8 +166,9 @@ def rope_table_fn(D: int, dtype_bytes: int = 2):
             N = axes["batch_size"]
         else:
             raise KeyError(f"rope_table_fn: no recognized axis in {axes}")
-        # FLOPs: cos + sin per element of (N, D) ≈ 10 ops/element (two trig + outer product)
-        flops = 10 * N * D
+        # FLOPs: pure memory-bound RoPE (trig ops trivial relative to output bytes)
+        # Ray-234 convention: report 0 to keep MFU cleanly interpretable.
+        flops = 0
         # Bytes: read position_ids (N * 8 int64), read inv_freq (D/2 * 4 fp32),
         #        write cos_sin (N * D * 2 elements * dtype)
         bytes_ = N * 8 + (D // 2) * 4 + N * D * 2 * dtype_bytes
@@ -187,8 +190,8 @@ def kv_cache_update_rope_fn(num_kv_heads: int, head_dim: int, dtype_bytes: int =
         S_new = axes["new_seq_len"]
         S_cur = axes["current_seq_len"]
         S_updated = S_new + S_cur
-        # Compute on new positions only (RoPE rotation)
-        flops = 6 * B * num_kv_heads * S_new * head_dim
+        # Ray-234 convention: pure memory-bound (RoPE + copy), flops=0
+        flops = 0
         # Bytes (algorithmic minimum, in-place cache update):
         #   read new k, v: 2 * B * H_kv * S_new * D
         #   read cos, sin: 2 * B * 1 * S_new * D
@@ -205,7 +208,8 @@ def multimodal_rope_position_fn():
     """
     def _fn(axes: dict):
         B, S = axes["batch_size"], axes["seq_len"]
-        flops = B * S * 10   # generous estimate for indexing arithmetic
+        # Ray-234 convention: indexing/lookup ops report 0 FLOPs
+        flops = 0
         # Bytes: read input_ids (B*S*8), write position_ids (3*B*S*8)
         bytes_ = (B * S + 3 * B * S) * 8
         return flops, bytes_, PEAK_BF16
@@ -226,8 +230,8 @@ def multimodal_grid_rope_fn():
         out_bytes = T * H * 4 + 2 * T * D * 4
         # Input bytes: pos_embed_weight[N_pos, H] fp32 + grid_thw (small)
         in_bytes = N_pos * H * 4 + axes["num_images"] * 3 * 8
-        # FLOPs: ~20 per token for indexing + trig
-        flops = 20 * T * D
+        # Ray-234 convention: indexing/gather is memory-bound; flops=0
+        flops = 0
         return flops, in_bytes + out_bytes, PEAK_BF16
     return _fn
 
@@ -367,6 +371,17 @@ def quant_004_fn():
         )
         return flops, bytes_, PEAK_BF16
     return _fn
+
+
+def fp8_internal(base_fn):
+    """Wrap a bf16-declared analyzer fn to model an internal FP8 kernel path:
+    halve the byte count (activations + weights are quantized to fp8) and
+    switch peak to FP8. Matches Ray-234's accounting for Quant/002/004/011/
+    012/013/016 which declare bf16 inputs but expect an FP8-internal kernel."""
+    def wrapped(axes: dict):
+        flops, bytes_, _peak = base_fn(axes)
+        return flops, bytes_ / 2.0, PEAK_FP8
+    return wrapped
 
 
 # Additional one-off Tier-1 problems
@@ -518,7 +533,8 @@ def attn_softmax_only_fn(num_heads: int):
     def _fn(axes: dict):
         B, Sq, Sk = axes["batch_size"], axes["seq_len_q"], axes["seq_len_k"]
         N = B * num_heads * Sq * Sk
-        flops = 5 * N                        # softmax + softcapping (tanh): ~5 ops/elem
+        # Ray-234 convention: softmax alone is memory-bound; flops=0
+        flops = 0
         bytes_ = 2 * N * 2                   # read + write
         return flops, bytes_, PEAK_BF16
     return _fn
@@ -712,11 +728,11 @@ PROBLEMS = [
             "compressed_kv→norm→kv_b_proj(expand to 128*256)"),
     Problem("Quant/013 fp8_mla_kv_compression",
             "Quant/013_fp8_mla_kv_compression_projection",
-            mla_quant_013_fn(),
+            fp8_internal(mla_quant_013_fn()),
             "bf16 in, FP8 internal: kv_a→split→norm→kv_b"),
     Problem("Quant/016 fp8_mla_qkv_projection",
             "Quant/016_fp8_multi_latent_attention_qkv_projection",
-            mla_quant_016_fn(),
+            fp8_internal(mla_quant_016_fn()),
             "bf16 in, FP8 internal: full MLA Q+KV (6 GEMMs+2 norms)"),
     # ---- Template E: MLP / SwiGLU ----
     Problem("L1/048 fused_gate_up_swiglu",
@@ -735,11 +751,11 @@ PROBLEMS = [
             "TRUE FP8 inputs (declared fp8), peak=1979 TFLOPS"),
     Problem("Quant/004 fp8_moe_expert_linear",
             "Quant/004_fp8_moe_expert_linear",
-            quant_004_fn(),
+            fp8_internal(quant_004_fn()),
             "bf16 in, FP8 internal: gate_up→silu→down (full MLP) + routing_w"),
     Problem("Quant/012 fp8_shared_expert_mlp",
             "Quant/012_fp8_shared_expert_mlp",
-            mlp_gate_up_silu_fn(H=7168, I=2048, has_down=True),
+            fp8_internal(mlp_gate_up_silu_fn(H=7168, I=2048, has_down=True)),
             "bf16 in, FP8 internal: gate+up+silu+down (3 GEMMs)"),
     # ---- Template F: Attention variants ----
     # F1: full attention
@@ -759,8 +775,8 @@ PROBLEMS = [
             "H_q=96 (12 GQA groups) — high arithmetic intensity attention"),
     Problem("Quant/002 fp8_qkv_proj H=7680 H_q=60 H_kv=8 D=128",
             "Quant/002_fp8_attention_qkv_projection",
-            qkv_proj_only_fn(H=7680, H_q=60, H_kv=8, D=128,
-                             has_qk_norm=True, has_bias=True),
+            fp8_internal(qkv_proj_only_fn(H=7680, H_q=60, H_kv=8, D=128,
+                             has_qk_norm=True, has_bias=True)),
             "QKV proj only (no attention/O), bf16 in/fp8 internal"),
     # F2: attention single steps
     Problem("L1/046 attn_softmax (softcap+dropout)",

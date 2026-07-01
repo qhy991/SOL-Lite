@@ -39,13 +39,13 @@ for _i, _a in enumerate(sys.argv):
 # Preset table — dense Tensor-Core peaks, no sparsity assumptions
 # Keys mirror common GPU names; SOL_LITE_HARDWARE matches by uppercase.
 PRESETS: dict[str, dict[str, float]] = {
-    "H800":     dict(TC_BF16=989e12,  TC_FP8=1979e12, HBM=3.35e12),   # SXM5, the SOL-Lite default
-    "H800_PCIE":dict(TC_BF16=756e12,  TC_FP8=1513e12, HBM=2.00e12),
-    "H100":     dict(TC_BF16=989e12,  TC_FP8=1979e12, HBM=3.35e12),   # SXM5
-    "H100_PCIE":dict(TC_BF16=756e12,  TC_FP8=1513e12, HBM=2.00e12),
-    "H200":     dict(TC_BF16=989e12,  TC_FP8=1979e12, HBM=4.80e12),   # SXM5, HBM3e
-    "B200":     dict(TC_BF16=2250e12, TC_FP8=4500e12, HBM=8.00e12),   # SXM5, HBM3e (dense)
-    "A100":     dict(TC_BF16=312e12,  TC_FP8=0,       HBM=2.04e12),   # SXM4 80GB
+    "H800":     dict(TC_BF16=989e12,  TC_FP8=1979e12, HBM=3.35e12, L2=50e6),   # SXM5, the SOL-Lite default
+    "H800_PCIE":dict(TC_BF16=756e12,  TC_FP8=1513e12, HBM=2.00e12, L2=50e6),
+    "H100":     dict(TC_BF16=989e12,  TC_FP8=1979e12, HBM=3.35e12, L2=50e6),   # SXM5
+    "H100_PCIE":dict(TC_BF16=756e12,  TC_FP8=1513e12, HBM=2.00e12, L2=50e6),
+    "H200":     dict(TC_BF16=989e12,  TC_FP8=1979e12, HBM=4.80e12, L2=60e6),   # SXM5, HBM3e
+    "B200":     dict(TC_BF16=2250e12, TC_FP8=4500e12, HBM=8.00e12, L2=100e6),  # SXM5, HBM3e (dense)
+    "A100":     dict(TC_BF16=312e12,  TC_FP8=0,       HBM=2.04e12, L2=40e6),   # SXM4 80GB
 }
 
 LATENCY_FLOOR_US = 5.0
@@ -64,6 +64,7 @@ HARDWARE_NAME, _peaks = _resolve()
 PEAK_BF16 = _peaks["TC_BF16"]
 PEAK_FP8  = _peaks["TC_FP8"]
 PEAK_BW   = _peaks["HBM"]
+L2_SIZE   = _peaks.get("L2", 50e6)   # bytes; for L2-cache-aware bytes accounting
 
 # Derived ridges
 RIDGE_BF16 = PEAK_BF16 / PEAK_BW if PEAK_BW else 0.0
@@ -99,11 +100,12 @@ def apply_hardware_from_args(args) -> None:
     os.environ["SOL_LITE_HARDWARE"] = hw
     # Refresh this module's module-level constants for callers that hold a
     # reference to it (e.g. CLI that imports add_hardware_arg).
-    global HARDWARE_NAME, PEAK_BF16, PEAK_FP8, PEAK_BW, RIDGE_BF16, RIDGE_FP8
+    global HARDWARE_NAME, PEAK_BF16, PEAK_FP8, PEAK_BW, RIDGE_BF16, RIDGE_FP8, L2_SIZE
     HARDWARE_NAME, _p = _resolve()
     PEAK_BF16 = _p["TC_BF16"]
     PEAK_FP8  = _p["TC_FP8"]
     PEAK_BW   = _p["HBM"]
+    L2_SIZE   = _p.get("L2", 50e6)
     RIDGE_BF16 = PEAK_BF16 / PEAK_BW if PEAK_BW else 0.0
     RIDGE_FP8  = PEAK_FP8  / PEAK_BW if (PEAK_BW and PEAK_FP8) else 0.0
 

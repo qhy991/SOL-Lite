@@ -1,0 +1,50 @@
+[
+  {
+    "workload_uuid": "a31ba22f-b640-4013-a369-daff2137fbe5",
+    "status": "passed",
+    "axes": {
+      "batch_size": 7
+    },
+    "axes_label": "batch_size=7",
+    "t_sol_ms": 5.760000000000001e-06,
+    "t_base_ms": 0.011193600296974183,
+    "mfu_pct": 0.0,
+    "bw_util_pct": 0.051457974621061144,
+    "t_base_over_t_sol": 1943.333384891351,
+    "regime": "latency",
+    "mfu_ceiling": 0.0,
+    "cost_source": "ray234"
+  },
+  {
+    "workload_uuid": "487a514f-e33b-4247-a42a-4abe569fec45",
+    "status": "passed",
+    "axes": {
+      "batch_size": 539
+    },
+    "axes_label": "batch_size=539",
+    "t_sol_ms": 0.00041433599999999996,
+    "t_base_ms": 0.009565866986910502,
+    "mfu_pct": 0.0,
+    "bw_util_pct": 4.331400390230793,
+    "t_base_over_t_sol": 23.087221450490674,
+    "regime": "latency",
+    "mfu_ceiling": 0.0,
+    "cost_source": "ray234"
+  },
+  {
+    "workload_uuid": "c2c0808b-f368-434a-bbd7-09c79cec998b",
+    "status": "passed",
+    "axes": {
+      "batch_size": 64
+    },
+    "axes_label": "batch_size=64",
+    "t_sol_ms": 4.9536e-05,
+    "t_base_ms": 0.009341866771380106,
+    "mfu_pct": 0.0,
+    "bw_util_pct": 0.5302580438393673,
+    "t_base_over_t_sol": 188.58742674782192,
+    "regime": "latency",
+    "mfu_ceiling": 0.0,
+    "cost_source": "ray234"
+  }
+]

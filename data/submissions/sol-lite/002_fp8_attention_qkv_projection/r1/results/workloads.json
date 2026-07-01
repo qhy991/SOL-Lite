@@ -1,0 +1,53 @@
+[
+  {
+    "workload_uuid": "08113562-ea33-5b89-9233-bb6919fb26bc",
+    "status": "passed",
+    "axes": {
+      "batch_size": 16,
+      "seq_len": 256
+    },
+    "axes_label": "batch_size=16,seq_len=256",
+    "t_sol_ms": 0.13600729770666667,
+    "t_base_ms": 2.4870262145996094,
+    "mfu_pct": 5.4686716572693115,
+    "bw_util_pct": 0.7339296985632533,
+    "t_base_over_t_sol": 18.28597624197707,
+    "regime": "compute",
+    "mfu_ceiling": 1.0,
+    "cost_source": "ray234"
+  },
+  {
+    "workload_uuid": "b45a7302-e2ab-56e2-a71a-e3948931eaa9",
+    "status": "passed",
+    "axes": {
+      "batch_size": 4,
+      "seq_len": 384
+    },
+    "axes_label": "batch_size=4,seq_len=384",
+    "t_sol_ms": 0.051002736640000004,
+    "t_base_ms": 1.4972618103027344,
+    "mfu_pct": 3.4064006901830783,
+    "bw_util_pct": 0.8470438444854015,
+    "t_base_over_t_sol": 29.356499453569995,
+    "regime": "compute",
+    "mfu_ceiling": 1.0,
+    "cost_source": "ray234"
+  },
+  {
+    "workload_uuid": "833bbff8-d14a-506c-bceb-f34eec53794e",
+    "status": "passed",
+    "axes": {
+      "batch_size": 8,
+      "seq_len": 128
+    },
+    "axes_label": "batch_size=8,seq_len=128",
+    "t_sol_ms": 0.03400182442666667,
+    "t_base_ms": 1.324730682373047,
+    "mfu_pct": 2.5666971316583185,
+    "bw_util_pct": 0.8732606675401461,
+    "t_base_over_t_sol": 38.96057651936165,
+    "regime": "compute",
+    "mfu_ceiling": 1.0,
+    "cost_source": "ray234"
+  }
+]

@@ -1,0 +1,50 @@
+[
+  {
+    "workload_uuid": "efbebdf7-3ac7-53b5-aa54-7844aa4f8c83",
+    "status": "passed",
+    "axes": {
+      "num_tokens": 2048
+    },
+    "axes_label": "num_tokens=2048",
+    "t_sol_ms": 2.847932416,
+    "t_base_ms": 21.431689453125,
+    "mfu_pct": 2.992679528471854,
+    "bw_util_pct": 13.28841770607467,
+    "t_base_over_t_sol": 7.525350437643602,
+    "regime": "memory",
+    "mfu_ceiling": 0.22520962199312716,
+    "cost_source": "ray234"
+  },
+  {
+    "workload_uuid": "d19aa4df-f5fa-5123-a75c-2d8876a9c174",
+    "status": "passed",
+    "axes": {
+      "num_tokens": 2272
+    },
+    "axes_label": "num_tokens=2272",
+    "t_sol_ms": 2.85114368,
+    "t_base_ms": 21.63533935546875,
+    "mfu_pct": 3.288753199939122,
+    "bw_util_pct": 13.178178687912832,
+    "t_base_over_t_sol": 7.588302023231868,
+    "regime": "memory",
+    "mfu_ceiling": 0.24956052561008316,
+    "cost_source": "ray234"
+  },
+  {
+    "workload_uuid": "8f1dffcb-7f3d-5ddc-b2f0-0202e8552f64",
+    "status": "passed",
+    "axes": {
+      "num_tokens": 6144
+    },
+    "axes_label": "num_tokens=6144",
+    "t_sol_ms": 2.906652672,
+    "t_base_ms": 21.783235677083333,
+    "mfu_pct": 8.833147550399334,
+    "bw_util_pct": 13.343530387718719,
+    "t_base_over_t_sol": 7.49426854020876,
+    "regime": "balanced",
+    "mfu_ceiling": 0.661979797979798,
+    "cost_source": "ray234"
+  }
+]

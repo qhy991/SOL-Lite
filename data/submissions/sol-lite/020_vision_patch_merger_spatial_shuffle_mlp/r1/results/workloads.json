@@ -1,0 +1,56 @@
+[
+  {
+    "workload_uuid": "3b69084d-dfca-51e1-a44d-2d1d9e6c2264",
+    "status": "passed",
+    "axes": {
+      "num_patches": 4096,
+      "num_merged_patches": 1024,
+      "num_grids": 4
+    },
+    "axes_label": "num_grids=4,num_merged_patches=1024,num_patches=4096",
+    "t_sol_ms": 0.05440291908266667,
+    "t_base_ms": 0.26212587356567385,
+    "mfu_pct": 20.754501775284076,
+    "bw_util_pct": 0.9503587784423208,
+    "t_base_over_t_sol": 4.818231778470686,
+    "regime": "compute",
+    "mfu_ceiling": 1.0,
+    "cost_source": "ray234"
+  },
+  {
+    "workload_uuid": "c60491d2-4780-523b-919c-bd2eaed8527d",
+    "status": "passed",
+    "axes": {
+      "num_patches": 32768,
+      "num_merged_patches": 8192,
+      "num_grids": 8
+    },
+    "axes_label": "num_grids=8,num_merged_patches=8192,num_patches=32768",
+    "t_sol_ms": 0.4352233526613334,
+    "t_base_ms": 1.1126570383707683,
+    "mfu_pct": 39.11567874487347,
+    "bw_util_pct": 1.7906427194469305,
+    "t_base_over_t_sol": 2.5565196158869172,
+    "regime": "compute",
+    "mfu_ceiling": 1.0,
+    "cost_source": "ray234"
+  },
+  {
+    "workload_uuid": "38e61f30-734d-5426-8519-f1ad7ce622cb",
+    "status": "passed",
+    "axes": {
+      "num_patches": 512,
+      "num_merged_patches": 128,
+      "num_grids": 2
+    },
+    "axes_label": "num_grids=2,num_merged_patches=128,num_patches=512",
+    "t_sol_ms": 0.006800364885333334,
+    "t_base_ms": 0.16585920651753744,
+    "mfu_pct": 4.100082852268007,
+    "bw_util_pct": 0.18815009220908294,
+    "t_base_over_t_sol": 24.38975103751473,
+    "regime": "compute",
+    "mfu_ceiling": 1.0,
+    "cost_source": "ray234"
+  }
+]

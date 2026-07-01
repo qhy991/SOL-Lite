@@ -199,11 +199,35 @@ def generate_inputs(defn: dict, axes: dict, get_inputs_fn, device: str):
     return out
 
 
-def materialize_scalars(workload_inputs: dict, kwargs: dict) -> dict:
-    """Pull scalar values from the workload's inputs section into kwargs."""
+def materialize_scalars(workload_inputs: dict, kwargs: dict,
+                        safetensors_root: Path | None = None) -> dict:
+    """Pull scalar values from the workload's inputs section into kwargs.
+    Also load safetensors-typed inputs from disk if `safetensors_root` is set."""
+    torch = _need_torch()
     for k, v in workload_inputs.items():
-        if isinstance(v, dict) and v.get("type") == "scalar":
+        if not isinstance(v, dict):
+            continue
+        t = v.get("type")
+        if t == "scalar":
             kwargs[k] = v["value"]
+        elif t == "safetensors" and safetensors_root is not None:
+            path = v.get("path")
+            key  = v.get("tensor_key")
+            if not path or not key:
+                continue
+            # Try a few candidate roots in order
+            for root in (safetensors_root, safetensors_root.parent,
+                         Path("/home/qinhaiyan/sol-execbench")):
+                candidate = root / path if not Path(path).is_absolute() else Path(path)
+                if candidate.exists():
+                    try:
+                        from safetensors.torch import load_file
+                        loaded = load_file(str(candidate))
+                        if key in loaded:
+                            kwargs[k] = loaded[key].to("cuda")
+                            break
+                    except Exception:
+                        pass
     return kwargs
 
 
@@ -264,7 +288,8 @@ def bench_problem(problem_dir: Path, defn: dict, solution_path: Path | None,
         torch.manual_seed(0)
         kwargs = generate_inputs(defn, axes, get_inputs_fn, device)
         if isinstance(kwargs, dict):
-            kwargs = materialize_scalars(w.get("inputs", {}), kwargs)
+            kwargs = materialize_scalars(w.get("inputs", {}), kwargs,
+                                          safetensors_root=Path("/home/qinhaiyan/sol-execbench"))
         else:
             kwargs = list(kwargs)   # tuples too
 

@@ -1,0 +1,59 @@
+[
+  {
+    "workload_uuid": "00cb2bc2-c7c7-43a1-b857-b516eb2ce061",
+    "status": "passed",
+    "axes": {
+      "batch_size": 1,
+      "num_pages": 989669,
+      "len_indptr": 2,
+      "num_kv_indices": 8
+    },
+    "axes_label": "batch_size=1,len_indptr=2,num_kv_indices=8,num_pages=989669",
+    "t_sol_ms": 4.35825e-06,
+    "t_base_ms": 0.09600640137990316,
+    "mfu_pct": 0.00012893955032475054,
+    "bw_util_pct": 0.004539541048678765,
+    "t_base_over_t_sol": 22028.65860836417,
+    "regime": "latency",
+    "mfu_ceiling": 0.02840365335219921,
+    "cost_source": "ray234"
+  },
+  {
+    "workload_uuid": "f42ce054-47e4-4db1-a4f8-650674a8d6d1",
+    "status": "passed",
+    "axes": {
+      "batch_size": 16,
+      "num_pages": 989669,
+      "len_indptr": 17,
+      "num_kv_indices": 5857
+    },
+    "axes_label": "batch_size=16,len_indptr=17,num_kv_indices=5857,num_pages=989669",
+    "t_sol_ms": 9.062991644444445e-05,
+    "t_base_ms": 0.116594131787618,
+    "mfu_pct": 0.07773111309712512,
+    "bw_util_pct": 0.030214213579950615,
+    "t_base_over_t_sol": 1286.4861445512802,
+    "regime": "latency",
+    "mfu_ceiling": 1.0,
+    "cost_source": "ray234"
+  },
+  {
+    "workload_uuid": "1c3743b9-d48e-453a-a023-9b52b1b73989",
+    "status": "passed",
+    "axes": {
+      "batch_size": 64,
+      "num_pages": 989669,
+      "len_indptr": 65,
+      "num_kv_indices": 68745
+    },
+    "axes_label": "batch_size=64,len_indptr=65,num_kv_indices=68745,num_pages=989669",
+    "t_sol_ms": 0.0010637448533333334,
+    "t_base_ms": 0.19510720570882162,
+    "mfu_pct": 0.5452104392909344,
+    "bw_util_pct": 0.06862944887839464,
+    "t_base_over_t_sol": 183.41541686188833,
+    "regime": "latency",
+    "mfu_ceiling": 1.0,
+    "cost_source": "ray234"
+  }
+]

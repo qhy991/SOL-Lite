@@ -1,0 +1,53 @@
+[
+  {
+    "workload_uuid": "49c26ebb-7c8a-5ca0-ba8c-aa7e23768761",
+    "status": "passed",
+    "axes": {
+      "num_images": 4,
+      "total_tokens": 64
+    },
+    "axes_label": "num_images=4,total_tokens=64",
+    "t_sol_ms": 0.00012720825,
+    "t_base_ms": 2.388375345865885,
+    "mfu_pct": 0.0,
+    "bw_util_pct": 0.005326141480240482,
+    "t_base_over_t_sol": 18775.317999154027,
+    "regime": "latency",
+    "mfu_ceiling": 0.0,
+    "cost_source": "ray234"
+  },
+  {
+    "workload_uuid": "0cd82c0f-70c2-5de1-ade3-78b4b8770979",
+    "status": "passed",
+    "axes": {
+      "num_images": 16,
+      "total_tokens": 4096
+    },
+    "axes_label": "num_images=16,total_tokens=4096",
+    "t_sol_ms": 0.00370804575,
+    "t_base_ms": 6.837261962890625,
+    "mfu_pct": 0.0,
+    "bw_util_pct": 0.05423290448904096,
+    "t_base_over_t_sol": 1843.8990303424991,
+    "regime": "latency",
+    "mfu_ceiling": 0.0,
+    "cost_source": "ray234"
+  },
+  {
+    "workload_uuid": "00c2918b-c9d7-5bf2-b42c-0a783d46b981",
+    "status": "passed",
+    "axes": {
+      "num_images": 7,
+      "total_tokens": 112
+    },
+    "axes_label": "num_images=7,total_tokens=112",
+    "t_sol_ms": 0.000222648,
+    "t_base_ms": 3.2237162272135413,
+    "mfu_pct": 0.0,
+    "bw_util_pct": 0.006906563242771791,
+    "t_base_over_t_sol": 14478.981294301057,
+    "regime": "latency",
+    "mfu_ceiling": 0.0,
+    "cost_source": "ray234"
+  }
+]

@@ -1,0 +1,50 @@
+[
+  {
+    "workload_uuid": "da956ed8-c246-5d95-8e73-7bd6c0f2a863",
+    "status": "passed",
+    "axes": {
+      "num_tokens": 2816
+    },
+    "axes_label": "num_tokens=2816",
+    "t_sol_ms": 0.05511874696533334,
+    "t_base_ms": 1.2522186279296874,
+    "mfu_pct": 4.401687192312577,
+    "bw_util_pct": 0.8426081328501416,
+    "t_base_over_t_sol": 22.718561231394904,
+    "regime": "compute",
+    "mfu_ceiling": 1.0,
+    "cost_source": "ray234"
+  },
+  {
+    "workload_uuid": "276151c3-7ce5-5fd5-b113-5107c6e8364f",
+    "status": "passed",
+    "axes": {
+      "num_tokens": 1408
+    },
+    "axes_label": "num_tokens=1408",
+    "t_sol_ms": 0.02755937348266667,
+    "t_base_ms": 0.925112533569336,
+    "mfu_pct": 2.979029305368408,
+    "bw_util_pct": 0.8678036140127919,
+    "t_base_over_t_sol": 33.567981295045804,
+    "regime": "compute",
+    "mfu_ceiling": 1.0,
+    "cost_source": "ray234"
+  },
+  {
+    "workload_uuid": "cbe9380f-be5d-5595-bfb1-76e991b31ac2",
+    "status": "passed",
+    "axes": {
+      "num_tokens": 896
+    },
+    "axes_label": "num_tokens=896",
+    "t_sol_ms": 0.017537783125333335,
+    "t_base_ms": 0.7907626469930014,
+    "mfu_pct": 2.2178315063342326,
+    "bw_util_pct": 0.8992149574893785,
+    "t_base_over_t_sol": 45.08908801881262,
+    "regime": "compute",
+    "mfu_ceiling": 1.0,
+    "cost_source": "ray234"
+  }
+]
